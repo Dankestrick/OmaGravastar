@@ -90,10 +90,24 @@ them.
 | --- | --- |
 | ![Settings tab](docs/screenshots/Settings.png) | ![Device tab](docs/screenshots/Device.png) |
 
+## Supported mice
+
+| Mice | Status |
+| --- | --- |
+| **Gravastar Mercury X Pro** with its 2.4G dongle (USB `3554:f54b`) | **Tested.** Every feature was checked on real hardware. |
+| **Other Gravastar Mercury mice** (M1, M1 Pro, M2, X). Dongles `3554:f575`, `3554:f548`, `3554:f577`; wired `3554:f576`, `3554:f549` | **Very likely to work, not tested.** Gravastar's web driver runs all of them through the same code, with the same settings layout, buttons, lighting and macros. Some use the newer PAW3950 sensor (32,000 DPI instead of 26,000), and the button photos show an X Pro. |
+| **Other brands on CompX chips** (VGN, VXE, ATK, WLmouse) | **No.** Same chip maker, different settings layout. Try [OpenMouse](https://github.com/OpenMouse-Project/openmouse) instead. |
+
+OmaGravastar only talks to the tested dongle, so it never writes to hardware
+nobody has tried. If you own another Mercury mouse and want to help add it,
+[open an issue](https://github.com/Dankestrick/OmaGravastar/issues) with the
+output of `lsusb | grep 3554` and your model name. Profile files exported from
+a mouse with a different sensor won't import, the same as in the web driver.
+
 ## Install
 
 You need [Omarchy](https://omarchy.org) 4, a Gravastar Mercury X Pro with its
-2.4G dongle plugged in, Python 3 (Omarchy already has it), and `zenity` for the
+2.4G dongle plugged in (see [Supported mice](#supported-mice)), Python 3 (Omarchy already has it), and `zenity` for the
 Export and Import file pickers.
 
 **1. Add the plugin.**
