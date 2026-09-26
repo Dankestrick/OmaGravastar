@@ -12,13 +12,15 @@ Usage:
   omagravastarctl set active-stage <stage 1-8>
   omagravastarctl set stage-count <1-8>
   omagravastarctl set polling <125|250|500|1000|2000|4000|8000>
-  omagravastarctl set key-response <ms 0-30>
+  omagravastarctl set key-response <ms 0-15>
   omagravastarctl set lod <0.7mm|1mm|2mm>
   omagravastarctl set motion-sync|angle-snap|ripple|performance <on|off>
   omagravastarctl set sleep <10sec|30sec|1min|2min|3min|5min|10min|15min>
   omagravastarctl set performance-timer <10sec|30sec|1min|2min|3min|5min|10min|15min>
   omagravastarctl set long-distance <on|off>
   omagravastarctl set sensor-mode <lp|hp>   (Corded is automatic above 1000 Hz)
+  omagravastarctl button <1-6> <action>     (see `omagravastarctl actions`)
+  omagravastarctl actions
   omagravastarctl light effect <off|rainbow|single-color-breath|fixed-color|neon|rainbow-breath|fixed-rainbow>
   omagravastarctl light color <#rrggbb>
   omagravastarctl light brightness <1-10>
@@ -72,6 +74,12 @@ ADDR_RIPPLE = 0xB1
 ADDR_OFF_WHEN_MOVING = 0xB3
 ADDR_PERFORMANCE = 0xB5
 ADDR_PERFORMANCE_TIMER = 0xB7
+ADDR_BUTTONS = 0x60
+ADDR_SHORTCUTS = 0x100
+SHORTCUT_LEN = 32
+# Web driver button number (1-6) -> memory slot. Buttons 4 and 5 are swapped
+# in memory (cfg.json keys[].index).
+BUTTON_SLOTS = {1: 0, 2: 1, 3: 2, 4: 4, 5: 3, 6: 5}
 ADDR_SENSOR_MODE = 0xB9
 
 POLLING_RAW = {125: 8, 250: 4, 500: 2, 1000: 1, 2000: 16, 4000: 32, 8000: 64}
@@ -105,6 +113,36 @@ EFFECT_NAMES = {
     5: "Rainbow Breath",
     6: "Fixed Rainbow",
 }
+# Button actions, named like Gravastar's web driver (lang/en.json KeyOptions).
+# value: (group, code). Multimedia uses group 5 plus a shortcut record.
+GROUP_MULTIMEDIA = 5
+ACTIONS = {}
+def _add(group_name, group, items):
+    for label, code in items:
+        ACTIONS[label] = (group_name, group, code)
+_add("Button", 1, [("Left Click", 0x0100), ("Right Click", 0x0200), ("Wheel Click", 0x0400),
+                   ("Backward", 0x0800), ("Forward", 0x1000)])
+_add("DPI Switch", 2, [("DPI loop", 0x0100), ("DPI +", 0x0200), ("DPI -", 0x0300)])
+_add("Scroll Left/Right", 3, [("Scroll Left", 0x0100), ("Scroll Right", 0x0200)])
+_add("Scroll Up/Down", 11, [("Scroll Up", 0x0100), ("Scroll Down", 0x0200)])
+_add("Polling rate switch", 7, [("Polling rate switch", 0x0000)])
+_add("Disable", 0, [("Disable", 0x0000)])
+_add("Toggle Decorative Lights", 8, [("Toggle All Decorative Lights", 0x0000),
+                                     ("Toggle DPI Indicator Light", 0x0100),
+                                     ("Toggle Light Strip", 0x0300),
+                                     ("Cycle Light Strip Effects", 0x0400)])
+_add("Multimedia", GROUP_MULTIMEDIA, [
+    ("Media player", 0x0183), ("Play/Pause", 0x00CD), ("Next Track", 0x00B5),
+    ("Previous Track", 0x00B6), ("Stop Playback", 0x00B7), ("Mute", 0x00E2),
+    ("Volume+", 0x00E9), ("Volume-", 0x00EA), ("Email", 0x018A), ("Calculator", 0x0192),
+    ("My Computer", 0x0194), ("Homepage", 0x0223), ("Search", 0x0221),
+    ("Next page", 0x0225), ("Previous page", 0x0224), ("Stop page", 0x0226),
+    ("Refresh page", 0x0227), ("Favorites", 0x022A)])
+MEDIA_NAMES = {code: label for label, (_, group, code) in ACTIONS.items() if group == GROUP_MULTIMEDIA}
+PLAIN_NAMES = {(group, code): label for label, (_, group, code) in ACTIONS.items() if group != GROUP_MULTIMEDIA}
+# Groups the plugin shows but cannot edit yet.
+OTHER_GROUPS = {4: "Firepower Button", 5: "Combo key", 6: "Macro", 9: "Profile switch", 10: "DPI Lock"}
+
 SWITCHES = {
     "motion-sync": ADDR_MOTION_SYNC,
     "angle-snap": ADDR_ANGLE_SNAP,
@@ -278,6 +316,26 @@ def on_off(value):
     return None if value is None else value != 0
 
 
+def decode_buttons(block, shortcuts):
+    buttons = []
+    for number in range(1, 7):
+        slot = BUTTON_SLOTS[number]
+        group, high, low, check = block[ADDR_BUTTONS + slot * 4:ADDR_BUTTONS + slot * 4 + 4]
+        code = high << 8 | low
+        label = None
+        if (group + high + low + check) & 0xFF == 0x55:
+            label = PLAIN_NAMES.get((group, code))
+            if group == GROUP_MULTIMEDIA and shortcuts:
+                record = shortcuts[slot * SHORTCUT_LEN:slot * SHORTCUT_LEN + 8]
+                if record[0] == 2 and record[1] == 0x82:
+                    label = MEDIA_NAMES.get(record[2] | record[3] << 8)
+                label = label or "Combo key"
+            elif label is None:
+                label = OTHER_GROUPS.get(group, "Unknown")
+        buttons.append({"button": number, "action": label or "Unknown", "group": group, "code": code})
+    return buttons
+
+
 def read_settings(mouse):
     block = mouse.read(0, 0xBD)
     stage_count = scalar(block, ADDR_STAGE_COUNT) or 1
@@ -312,6 +370,7 @@ def read_settings(mouse):
         "sensorMode": SENSOR_MODE_NAMES.get(scalar(block, ADDR_SENSOR_MODE)),
         "sleep": SLEEP_NAMES.get(sleep),
         "sleepRaw": sleep,
+        "buttons": decode_buttons(block, mouse.read(ADDR_SHORTCUTS, 6 * SHORTCUT_LEN)),
         "lighting": {
             "on": on_off(lights_on),
             "effect": "Off" if lights_on == 0 else EFFECT_NAMES.get(effect),
@@ -455,7 +514,7 @@ def run_set(mouse, args):
             raise HelperError(1, "polling rate must be 125, 250, 500, 1000, 2000, 4000 or 8000")
         mouse.write_scalar(ADDR_POLLING, POLLING_RAW[hz])
     elif what == "key-response":
-        mouse.write_scalar(ADDR_DEBOUNCE, parse_int(rest[0], 0, 30, "key response time"))
+        mouse.write_scalar(ADDR_DEBOUNCE, parse_int(rest[0], 0, 15, "key response time"))
     elif what in SWITCHES:
         mouse.write_scalar(SWITCHES[what], parse_switch(rest[0]))
     elif what == "lod":
@@ -475,6 +534,31 @@ def run_set(mouse, args):
         set_long_distance(mouse, parse_switch(rest[0]))
     else:
         raise HelperError(1, f"unknown setting: {what}")
+
+
+def run_button(mouse, args):
+    if len(args) != 2:
+        raise HelperError(1, 'usage: button <1-6> "<action>"')
+    number = parse_int(args[0], 1, 6, "button")
+    action = args[1]
+    if action not in ACTIONS:
+        raise HelperError(1, f"unknown action: {action}. Run `omagravastarctl actions` for the list")
+    _, group, code = ACTIONS[action]
+    slot = BUTTON_SLOTS[number]
+    # Same rule as the web driver: some button must stay Left Click.
+    if action != "Left Click":
+        block = mouse.read(ADDR_BUTTONS, 6 * 4)
+        others = [BUTTON_SLOTS[n] for n in range(1, 7) if n != number]
+        if not any(block[s * 4] == 1 and (block[s * 4 + 1] << 8 | block[s * 4 + 2]) == 0x0100 for s in others):
+            raise HelperError(1, "Must keep left key. Another button has to be Left Click first.")
+    if group == GROUP_MULTIMEDIA:
+        record = [2, 0x82, code & 0xFF, code >> 8, 0x42, code & 0xFF, code >> 8, 0]
+        record[7] = (0x55 - sum(record[:7])) & 0xFF
+        mouse.write(ADDR_SHORTCUTS + slot * SHORTCUT_LEN, record)
+        code = 0
+    entry = [group, code >> 8, code & 0xFF, 0]
+    entry[3] = (0x55 - sum(entry[:3])) & 0xFF
+    mouse.write(ADDR_BUTTONS + slot * 4, entry)
 
 
 def run_light(mouse, args):
@@ -527,6 +611,12 @@ def main(argv):
     if not argv or argv[0] in ("-h", "--help", "help"):
         print(__doc__.strip())
         return 0
+    if argv[0] == "actions":
+        groups = {}
+        for label, (group_name, _, _) in ACTIONS.items():
+            groups.setdefault(group_name, []).append(label)
+        print(json.dumps(groups))
+        return 0
     lock = with_lock()
     try:
         try:
@@ -539,9 +629,9 @@ def main(argv):
         try:
             if argv[0] == "status":
                 result = read_status(mouse)
-            elif argv[0] in ("set", "light"):
+            elif argv[0] in ("set", "light", "button"):
                 mouse.require_awake()
-                (run_set if argv[0] == "set" else run_light)(mouse, argv[1:])
+                {"set": run_set, "light": run_light, "button": run_button}[argv[0]](mouse, argv[1:])
                 result = read_status(mouse)
                 result["ok"] = True
             else:
