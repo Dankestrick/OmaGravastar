@@ -12,6 +12,7 @@ Usage:
   omagravastarctl set active-stage <stage 1-8>
   omagravastarctl set polling <125|250|500|1000|2000|4000|8000>
   omagravastarctl set key-response <ms 0-30>
+  omagravastarctl set lod <0.7mm|1mm|2mm>
   omagravastarctl set motion-sync|angle-snap|ripple|performance <on|off>
   omagravastarctl set sleep <10sec|30sec|1min|2min|3min|5min|10min|15min>
   omagravastarctl set long-distance <on|off>
@@ -69,8 +70,9 @@ ADDR_PERFORMANCE = 0xB5
 
 POLLING_RAW = {125: 8, 250: 4, 500: 2, 1000: 1, 2000: 16, 4000: 32, 8000: 64}
 POLLING_HZ = {raw: hz for hz, raw in POLLING_RAW.items()}
-# The web driver shows LOD as a fixed 1 mm (raw 1) and offers no other choice.
-LOD_MM = {1: 1.0}
+# Lift-off distance choices from the web driver, checked on this mouse.
+LOD_CHOICES = {"0.7mm": 3, "1mm": 1, "2mm": 2}
+LOD_NAMES = {raw: name for name, raw in LOD_CHOICES.items()}
 # Sleep time is stored in 10-second steps. These are the web driver's choices.
 SLEEP_CHOICES = {"10sec": 1, "30sec": 3, "1min": 6, "2min": 12, "3min": 18,
                  "5min": 30, "10min": 60, "15min": 90}
@@ -281,7 +283,7 @@ def read_settings(mouse):
         "dpiStages": stages,
         "activeStage": None if active is None else active + 1,
         "dpi": stages[active] if active is not None and active < len(stages) else None,
-        "lodMm": LOD_MM.get(lod),
+        "lod": LOD_NAMES.get(lod),
         "lodRaw": lod,
         "keyResponseMs": scalar(block, ADDR_DEBOUNCE),
         "motionSync": on_off(scalar(block, ADDR_MOTION_SYNC)),
@@ -396,6 +398,10 @@ def run_set(mouse, args):
         mouse.write_scalar(ADDR_DEBOUNCE, parse_int(rest[0], 0, 30, "key response time"))
     elif what in SWITCHES:
         mouse.write_scalar(SWITCHES[what], parse_switch(rest[0]))
+    elif what == "lod":
+        if rest[0] not in LOD_CHOICES:
+            raise HelperError(1, "lod must be " + ", ".join(LOD_CHOICES))
+        mouse.write_scalar(ADDR_LOD, LOD_CHOICES[rest[0]])
     elif what == "sleep":
         if rest[0] not in SLEEP_CHOICES:
             raise HelperError(1, "sleep must be " + ", ".join(SLEEP_CHOICES))
