@@ -18,7 +18,9 @@ Panel {
   readonly property var light: s.lighting || ({})
   readonly property bool connected: !!(mouse && mouse.connected)
   readonly property bool awake: !!(mouse && mouse.awake)
-  readonly property bool canEdit: connected && awake && s.pollingHz !== undefined
+  // Settings have been read at least once (live or from the helper's cache).
+  readonly property bool known: s.pollingHz !== undefined
+  readonly property bool canEdit: connected && awake && known
 
   readonly property color fg: bar ? bar.foreground : Color.foreground
   readonly property color dim: Qt.darker(fg, 1.4)
@@ -179,9 +181,20 @@ Panel {
 
         PanelSeparator { foreground: root.fg }
 
+        Text {
+          textFormat: Text.PlainText
+          visible: root.connected && !root.known && root.tab !== "Device"
+          width: parent.width
+          wrapMode: Text.WordWrap
+          text: "Move the mouse once so OmaGravastar can read its settings."
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+        }
+
         // ---------- Overview ----------
         Column {
-          visible: root.tab === "Overview"
+          visible: root.tab === "Overview" && root.known
           width: parent.width
           spacing: Style.space(8)
 
@@ -195,7 +208,7 @@ Panel {
 
         // ---------- DPI ----------
         Column {
-          visible: root.tab === "DPI"
+          visible: root.tab === "DPI" && root.known
           width: parent.width
           spacing: Style.space(10)
 
@@ -414,7 +427,7 @@ Panel {
 
         // ---------- Lighting ----------
         Column {
-          visible: root.tab === "Lighting"
+          visible: root.tab === "Lighting" && root.known
           width: parent.width
           spacing: Style.space(10)
 
@@ -517,21 +530,35 @@ Panel {
 
                 Repeater {
                   model: ["R", "G", "B"]
-                  delegate: NumberField {
+                  delegate: Row {
+                    id: channel
                     required property string modelData
                     required property int index
-                    width: channels.width
-                    label: modelData
-                    from: 0
-                    to: 255
-                    enabled: root.canEdit
-                    value: Api.hexChannels(root.light.color)[index]
-                    foreground: root.fg
-                    fontFamily: root.fontFamily
-                    onModified: function(v) {
-                      var rgb = Api.hexChannels(root.light.color)
-                      rgb[index] = v
-                      root.send(["light", "color", Api.rgbHex(rgb[0], rgb[1], rgb[2])])
+                    spacing: Style.space(8)
+
+                    Text {
+                      textFormat: Text.PlainText
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: Style.space(18)
+                      text: channel.modelData + ":"
+                      color: root.fg
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.body
+                    }
+
+                    NumberField {
+                      anchors.verticalCenter: parent.verticalCenter
+                      from: 0
+                      to: 255
+                      enabled: root.canEdit
+                      value: Api.hexChannels(root.light.color)[channel.index]
+                      foreground: root.fg
+                      fontFamily: root.fontFamily
+                      onModified: function(v) {
+                        var rgb = Api.hexChannels(root.light.color)
+                        rgb[channel.index] = v
+                        root.send(["light", "color", Api.rgbHex(rgb[0], rgb[1], rgb[2])])
+                      }
                     }
                   }
                 }
@@ -570,7 +597,7 @@ Panel {
 
         // ---------- Settings ----------
         Column {
-          visible: root.tab === "Settings"
+          visible: root.tab === "Settings" && root.known
           width: parent.width
           spacing: Style.space(10)
 

@@ -324,9 +324,42 @@ def read_settings(mouse):
     }
 
 
+CACHED_KEYS = ("battery", "charging", "batteryMv", "firmware", "receiverFirmware", "profile", "settings")
+
+
+def cache_path():
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+    return os.path.join(base, "omagravastar", "last-status.json")
+
+
+def save_cache(status):
+    path = cache_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w") as f:
+            json.dump({k: status[k] for k in CACHED_KEYS if k in status}, f)
+        os.replace(path + ".tmp", path)
+    except OSError:
+        pass
+
+
+def load_cache():
+    try:
+        with open(cache_path()) as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def read_status(mouse):
     status = {"connected": True, "device": mouse.path, "awake": mouse.awake()}
     if not status["awake"]:
+        # Asleep: answer with the last values read while it was awake.
+        cached = load_cache()
+        if cached:
+            status.update({k: cached[k] for k in CACHED_KEYS if k in cached})
+            status["stale"] = True
         return status
     battery = mouse.transact(CMD_BATTERY)
     if battery is not None and battery[1] == 0 and battery[5] <= 100:
@@ -347,6 +380,7 @@ def read_status(mouse):
     settings = read_settings(mouse)
     settings["longDistance"] = read_long_distance(mouse)
     status["settings"] = settings
+    save_cache(status)
     return status
 
 
