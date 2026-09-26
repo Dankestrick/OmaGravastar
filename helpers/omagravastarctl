@@ -22,6 +22,7 @@ Usage:
   omagravastarctl set sensor-mode <lp|hp>   (Corded is automatic above 1000 Hz)
   omagravastarctl button <1-6> <action>     (see `omagravastarctl actions`)
   omagravastarctl actions
+  omagravastarctl macro <1-6> <macro.json | '{json}'>  (write a macro to a button; see MACROS)
   omagravastarctl export <file.bin>         (current profile, Gravastar web driver format)
   omagravastarctl import <file.bin>         (into the current profile; backs it up first)
   omagravastarctl light effect <off|rainbow|single-color-breath|fixed-color|neon|rainbow-breath|fixed-rainbow>
@@ -29,6 +30,12 @@ Usage:
   omagravastarctl light brightness <1-10>
   omagravastarctl light speed <1-10>
   omagravastarctl light off-when-moving <on|off>
+
+MACROS: macro.json is {"name": "...", "method": M, "events": [{"down": true,
+"type": 1, "code": 4, "delay": 50}, ...]}. type 1 = keyboard (USB HID usage
+code), type 4 = mouse button (1 left, 2 right, 4 middle, 8 back, 16 forward).
+method: 1-252 = repeat that many times, 254 = until this button is released,
+255 = until any button is pressed, 253 = until this button is pressed again.
 
 Every command prints one JSON object. Exit status: 0 ok, 1 bad arguments,
 2 dongle not found, 3 mouse asleep, 4 the mouse rejected or lost a write.
@@ -149,7 +156,11 @@ _add("Multimedia", GROUP_MULTIMEDIA, [
 MEDIA_NAMES = {code: label for label, (_, group, code) in ACTIONS.items() if group == GROUP_MULTIMEDIA}
 PLAIN_NAMES = {(group, code): label for label, (_, group, code) in ACTIONS.items() if group != GROUP_MULTIMEDIA}
 # Groups the plugin shows but cannot edit yet.
-OTHER_GROUPS = {4: "Firepower Button", 5: "Combo key", 6: "Macro", 10: "DPI Lock"}
+OTHER_GROUPS = {4: "Firepower Button", 5: "Combo key", 10: "DPI Lock"}
+GROUP_MACRO = 6
+MACRO_NAME_MAX = 30
+MACRO_MAX_EVENTS = 70
+MACRO_METHODS = {253, 254, 255} | set(range(1, 253))
 
 SWITCHES = {
     "motion-sync": ADDR_MOTION_SYNC,
@@ -209,6 +220,8 @@ def find_device():
 # ---- Talking to it -----------------------------------------------------------
 
 def packet(command, address=0, data=b"", length=None):
+    if len(data) > MAX_CHUNK:
+        raise ValueError("a packet carries at most 10 data bytes")
     body = bytearray(PACKET_LEN)
     body[0] = command
     body[2] = (address >> 8) & 0xFF
@@ -287,10 +300,14 @@ class Mouse:
         return bytes(out)
 
     def write(self, address, data):
-        reply = self.transact(CMD_WRITE, address, bytes(data))
-        if reply is None or reply[1] != 0:
-            raise HelperError(4, f"The mouse did not accept the write at 0x{address:02x}")
-        if self.read(address, len(data)) != bytes(data):
+        data = bytes(data)
+        # The mouse takes at most 10 bytes per write packet.
+        for offset in range(0, len(data), MAX_CHUNK):
+            piece = data[offset:offset + MAX_CHUNK]
+            reply = self.transact(CMD_WRITE, address + offset, piece)
+            if reply is None or reply[1] != 0:
+                raise HelperError(4, f"The mouse did not accept the write at 0x{address + offset:02x}")
+        if self.read(address, len(data)) != data:
             raise HelperError(4, f"The mouse did not keep the value written at 0x{address:02x}")
 
     def write_scalar(self, address, value):
@@ -324,7 +341,47 @@ def on_off(value):
     return None if value is None else value != 0
 
 
-def decode_buttons(block, shortcuts):
+def read_macro(mouse, slot):
+    base = ADDR_MACROS + slot * MACRO_LEN
+    head = mouse.read(base, 32)
+    length, count = head[0], head[31]
+    if not 0 < length <= MACRO_NAME_MAX or count > MACRO_MAX_EVENTS:
+        return None
+    body = mouse.read(base + 32, count * 5) if count else b""
+    events = []
+    for i in range(count):
+        flags, low, high, dhigh, dlow = body[i * 5:i * 5 + 5]
+        events.append({"down": flags >> 6 == 2, "type": flags & 0x0F,
+                       "code": high << 8 | low, "delay": dhigh << 8 | dlow})
+    return {"name": bytes(head[1:1 + length]).decode("utf-8", "replace"), "events": events}
+
+
+def encode_macro(macro):
+    name = str(macro.get("name", "")).encode("utf-8")[:MACRO_NAME_MAX]
+    events = macro.get("events", [])
+    if not name:
+        raise HelperError(1, "Please enter the macro name.")
+    if not events:
+        raise HelperError(1, "The macro has no events.")
+    if len(events) > MACRO_MAX_EVENTS:
+        raise HelperError(1, "The number of macro keys has reached the upper limit.")
+    data = bytearray(b"\xff" * 32)
+    data[0] = len(name)
+    data[1:1 + len(name)] = name
+    data[31] = len(events)
+    body = bytearray()
+    for event in events:
+        kind, code, delay = int(event["type"]), int(event["code"]), int(event.get("delay", 0))
+        if kind not in (1, 4) or not 0 <= code <= 0xFFFF or not 0 <= delay <= 0xFFFF:
+            raise HelperError(1, f"Bad macro event: {event}")
+        body += bytes([((2 if event.get("down") else 1) << 6) | kind, code & 0xFF, code >> 8,
+                       delay >> 8, delay & 0xFF])
+    # Checksum as the web driver writes it: 0x55 - sum(events) - count.
+    body.append(((0x55 - sum(body)) - len(events)) & 0xFF)
+    return bytes(data + body)
+
+
+def decode_buttons(block, shortcuts, mouse=None):
     buttons = []
     for number in range(1, 7):
         slot = BUTTON_SLOTS[number]
@@ -338,6 +395,12 @@ def decode_buttons(block, shortcuts):
                 if record[0] == 2 and record[1] == 0x82:
                     label = MEDIA_NAMES.get(record[2] | record[3] << 8)
                 label = label or "Combo key"
+            elif group == GROUP_MACRO:
+                macro = read_macro(mouse, slot) if mouse else None
+                label = "Macro"
+                buttons.append({"button": number, "action": label, "group": group, "code": code,
+                                "macro": macro, "method": low})
+                continue
             elif label is None:
                 label = OTHER_GROUPS.get(group, "Unknown")
         buttons.append({"button": number, "action": label or "Unknown", "group": group, "code": code})
@@ -378,7 +441,7 @@ def read_settings(mouse):
         "sensorMode": SENSOR_MODE_NAMES.get(scalar(block, ADDR_SENSOR_MODE)),
         "sleep": SLEEP_NAMES.get(sleep),
         "sleepRaw": sleep,
-        "buttons": decode_buttons(block, mouse.read(ADDR_SHORTCUTS, 6 * SHORTCUT_LEN)),
+        "buttons": decode_buttons(block, mouse.read(ADDR_SHORTCUTS, 6 * SHORTCUT_LEN), mouse),
         "lighting": {
             "on": on_off(lights_on),
             "effect": "Off" if lights_on == 0 else EFFECT_NAMES.get(effect),
@@ -686,6 +749,32 @@ def run_import(mouse, args):
     return {"backup": backup, "chunksWritten": written}
 
 
+def run_macro(mouse, args):
+    if len(args) != 2:
+        raise HelperError(1, "usage: macro <1-6> <macro.json>")
+    number = parse_int(args[0], 1, 6, "button")
+    try:
+        if args[1].lstrip().startswith("{"):
+            macro = json.loads(args[1])        # the plugin passes the macro inline
+        else:
+            with open(os.path.expanduser(args[1])) as f:
+                macro = json.load(f)
+    except (OSError, ValueError) as error:
+        raise HelperError(1, f"Could not read the macro: {error}")
+    method = int(macro.get("method", 1))
+    if method not in MACRO_METHODS:
+        raise HelperError(1, "method must be 1-252 (times), 253, 254 or 255")
+    slot = BUTTON_SLOTS[number]
+    block = mouse.read(ADDR_BUTTONS, 6 * 4)
+    others = [BUTTON_SLOTS[n] for n in range(1, 7) if n != number]
+    if not any(block[s * 4] == 1 and (block[s * 4 + 1] << 8 | block[s * 4 + 2]) == 0x0100 for s in others):
+        raise HelperError(1, "Must keep left key. Another button has to be Left Click first.")
+    mouse.write(ADDR_MACROS + slot * MACRO_LEN, encode_macro(macro))
+    entry = [GROUP_MACRO, slot, method, 0]
+    entry[3] = (0x55 - sum(entry[:3])) & 0xFF
+    mouse.write(ADDR_BUTTONS + slot * 4, entry)
+
+
 def run_light(mouse, args):
     if len(args) != 2:
         raise HelperError(1, "light needs a setting and a value")
@@ -764,9 +853,9 @@ def main(argv):
                     info = run_import(mouse, argv[1:])
                     result = read_status(mouse)
                     result.update({"ok": True}, **info)
-            elif argv[0] in ("set", "light", "button"):
+            elif argv[0] in ("set", "light", "button", "macro"):
                 mouse.require_awake()
-                {"set": run_set, "light": run_light, "button": run_button}[argv[0]](mouse, argv[1:])
+                {"set": run_set, "light": run_light, "button": run_button, "macro": run_macro}[argv[0]](mouse, argv[1:])
                 result = read_status(mouse)
                 result["ok"] = True
             else:
