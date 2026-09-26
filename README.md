@@ -104,8 +104,10 @@ The helper also works from a terminal, which helps when reporting a problem:
 omarchy plugin remove io.github.dankestrick.omagravastar --yes
 ```
 
-That removes the plugin files and the bar icon. It leaves the udev rule and
-the settings cache. To remove those too:
+That removes the plugin files and the bar icon. Omarchy keeps a backup copy
+named `~/.config/omarchy/plugins/.io.github.dankestrick.omagravastar.bak.<date>`,
+which you can delete. It leaves the udev rule and the settings cache. To
+remove those too:
 
 ```bash
 sudo rm -f /etc/udev/rules.d/70-gravastar-mouse.rules
@@ -126,7 +128,7 @@ git clone https://github.com/Dankestrick/OmaGravastar.git
 cd OmaGravastar
 ./scripts/install.sh
 omarchy restart shell
-omarchy plugin validate .
+./scripts/validate.sh
 ```
 
 The shell keeps the old QML loaded until it restarts, so run
