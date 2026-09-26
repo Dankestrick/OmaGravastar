@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import qs.Commons
 import qs.Ui
 import "Api.js" as Api
@@ -28,6 +29,8 @@ Panel {
 
   readonly property var tabs: ["Overview", "Buttons", "DPI", "Lighting", "Settings", "Device"]
   property string tab: "Overview"
+  // The tab to come back to after the Buttons window.
+  property string returnTab: "Overview"
   property bool confirmLongDistance: false
   // Dropdowns inside Repeaters report their popups here so keys go to them.
   property int openMenus: 0
@@ -62,6 +65,7 @@ Panel {
 
   // The Buttons tab opens the larger floating window.
   function openButtonsWindow(button) {
+    if (root.tab !== "Buttons") root.returnTab = root.tab
     root.close()
     var host = bar ? bar.shell : null
     if (host && typeof host.summon === "function")
@@ -69,6 +73,21 @@ Panel {
   }
 
   onOpenedChanged: if (mouse) mouse.panelOpen = opened
+
+  function thisScreenName() {
+    var win = root.QsWindow ? root.QsWindow.window : null
+    return win && win.screen ? String(win.screen.name || "") : ""
+  }
+
+  // The Buttons window's switch lands here: open on the same monitor.
+  Connections {
+    target: root.mouse
+    function onMiniRequested(screenName) {
+      if (screenName !== "" && screenName !== root.thisScreenName()) return
+      root.tab = root.returnTab
+      root.open()
+    }
+  }
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -131,11 +150,27 @@ Panel {
             opacity: root.awake ? 1.0 : 0.5
           }
 
+          ToggleSwitch {
+            id: fullSwitch
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: true
+            foreground: root.fg
+            onToggled: root.openButtonsWindow(1)
+
+            PanelToolTip {
+              visible: fullSwitch.containsMouse
+              text: "Open buttons window"
+              fontFamily: root.fontFamily
+            }
+          }
+
           Column {
             id: heroLabels
             anchors.left: heroIcon.right
             anchors.leftMargin: Style.space(14)
-            anchors.right: parent.right
+            anchors.right: fullSwitch.left
+            anchors.rightMargin: Style.space(12)
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(2)
 
@@ -172,8 +207,8 @@ Panel {
           foreground: root.fg
           fontFamily: root.fontFamily
           onChanged: function(v) {
-            root.tab = v
             if (v === "Buttons") root.openButtonsWindow(1)
+            else root.tab = v
           }
         }
 

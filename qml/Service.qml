@@ -22,6 +22,22 @@ Item {
   property bool panelOpen: false
   property bool windowOpen: false
 
+  // The Buttons window asks the bar dropdown on its screen to take over.
+  // Sent a moment after the window closes: hiding the plugin also closes its
+  // dropdown, so the dropdown has to open after that.
+  signal miniRequested(string screenName)
+  property string miniScreen: ""
+  function showMini(screenName) {
+    miniScreen = String(screenName || "")
+    miniHandoff.restart()
+  }
+
+  Timer {
+    id: miniHandoff
+    interval: 250
+    onTriggered: root.miniRequested(root.miniScreen)
+  }
+
   readonly property string helper: Api.helperPath(Qt.resolvedUrl("../helpers/omagravastarctl"))
   readonly property bool connected: !!(status && status.connected)
   readonly property bool awake: !!(status && status.awake)

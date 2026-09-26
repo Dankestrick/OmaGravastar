@@ -69,6 +69,12 @@ Item {
     else close()
   }
 
+  // Back to the bar dropdown on this window's monitor.
+  function showMini() {
+    if (service) service.showMini(window.screen ? window.screen.name : "")
+    requestClose()
+  }
+
   function select(number) {
     selected = number
     browseGroup = ""
@@ -104,6 +110,7 @@ Item {
       focus: true
       Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Escape) { root.requestClose(); event.accepted = true }
+        else if (event.key === Qt.Key_M) { root.showMini(); event.accepted = true }
         else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) { root.select(Math.min(6, root.selected + 1)); event.accepted = true }
         else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) { root.select(Math.max(1, root.selected - 1)); event.accepted = true }
         else if (event.key >= Qt.Key_1 && event.key <= Qt.Key_6) { root.select(event.key - Qt.Key_0); event.accepted = true }
@@ -155,6 +162,22 @@ Item {
                 font.bold: true
                 font.letterSpacing: 1.2
               }
+            }
+          }
+
+          ToggleSwitch {
+            id: miniSwitch
+            anchors.right: closeButton.left
+            anchors.rightMargin: Style.space(12)
+            anchors.verticalCenter: parent.verticalCenter
+            checked: false
+            foreground: root.fg
+            onToggled: root.showMini()
+
+            PanelToolTip {
+              visible: miniSwitch.containsMouse
+              text: "Show mini panel · M"
+              fontFamily: root.fontFamily
             }
           }
 
