@@ -13,6 +13,8 @@ Usage:
   omagravastarctl set polling <125|250|500|1000|2000|4000|8000>
   omagravastarctl set key-response <ms 0-30>
   omagravastarctl set motion-sync|angle-snap|ripple|performance <on|off>
+  omagravastarctl set sleep <10sec|30sec|1min|2min|3min|5min|10min|15min>
+  omagravastarctl set long-distance <on|off>
   omagravastarctl light effect <off|rainbow|single-color-breath|fixed-color|neon|rainbow-breath|fixed-rainbow>
   omagravastarctl light color <#rrggbb>
   omagravastarctl light brightness <1-10>
@@ -43,7 +45,11 @@ CMD_ONLINE = 0x03
 CMD_BATTERY = 0x04
 CMD_WRITE = 0x07
 CMD_READ = 0x08
+CMD_PROFILE = 0x0E
 CMD_FIRMWARE = 0x12
+CMD_SET_LONG_DISTANCE = 0x16
+CMD_GET_LONG_DISTANCE = 0x17
+CMD_DONGLE_FIRMWARE = 0x1D
 
 ADDR_POLLING = 0x00
 ADDR_STAGE_COUNT = 0x02
@@ -63,9 +69,12 @@ ADDR_PERFORMANCE = 0xB5
 
 POLLING_RAW = {125: 8, 250: 4, 500: 2, 1000: 1, 2000: 16, 4000: 32, 8000: 64}
 POLLING_HZ = {raw: hz for hz, raw in POLLING_RAW.items()}
-# LOD raw 1 is 1 mm (checked against the web driver). 3 and 2 follow
-# OpenMouse's VGN order (low, high) and are not yet checked on this mouse.
-LOD_MM = {3: 0.7, 1: 1.0, 2: 2.0}
+# The web driver shows LOD as a fixed 1 mm (raw 1) and offers no other choice.
+LOD_MM = {1: 1.0}
+# Sleep time is stored in 10-second steps. These are the web driver's choices.
+SLEEP_CHOICES = {"10sec": 1, "30sec": 3, "1min": 6, "2min": 12, "3min": 18,
+                 "5min": 30, "10min": 60, "15min": 90}
+SLEEP_NAMES = {raw: name for name, raw in SLEEP_CHOICES.items()}
 
 EFFECTS = {
     "rainbow": 1,
@@ -279,6 +288,7 @@ def read_settings(mouse):
         "angleSnap": on_off(scalar(block, ADDR_ANGLE_SNAP)),
         "ripple": on_off(scalar(block, ADDR_RIPPLE)),
         "performance": on_off(scalar(block, ADDR_PERFORMANCE)),
+        "sleep": SLEEP_NAMES.get(sleep),
         "sleepRaw": sleep,
         "lighting": {
             "on": on_off(lights_on),
@@ -305,8 +315,33 @@ def read_status(mouse):
     firmware = mouse.transact(CMD_FIRMWARE)
     if firmware is not None and firmware[1] == 0:
         status["firmware"] = f"v{firmware[5]}.{firmware[6]:02x}"
-    status["settings"] = read_settings(mouse)
+    dongle = mouse.transact(CMD_DONGLE_FIRMWARE)
+    if dongle is not None:
+        # The web driver shows v1.0 for a reply of 01 in the status byte.
+        status["receiverFirmware"] = f"v{dongle[1]}.{dongle[2]}"
+    profile = mouse.transact(CMD_PROFILE)
+    if profile is not None and profile[1] == 0:
+        status["profile"] = profile[5] + 1
+    settings = read_settings(mouse)
+    settings["longDistance"] = read_long_distance(mouse)
+    status["settings"] = settings
     return status
+
+
+def read_long_distance(mouse):
+    reply = mouse.transact(CMD_GET_LONG_DISTANCE)
+    if reply is None or reply[1] != 0:
+        return None
+    return reply[5] == 1
+
+
+def set_long_distance(mouse, value):
+    data = bytes([value]) + bytes(MAX_CHUNK - 1)
+    reply = mouse.transact(CMD_SET_LONG_DISTANCE, data=data)
+    if reply is None or reply[1] != 0:
+        raise HelperError(4, "The mouse did not accept the long distance mode change")
+    if read_long_distance(mouse) != bool(value):
+        raise HelperError(4, "The mouse did not keep the long distance mode change")
 
 
 # ---- Commands ----------------------------------------------------------------
@@ -361,6 +396,12 @@ def run_set(mouse, args):
         mouse.write_scalar(ADDR_DEBOUNCE, parse_int(rest[0], 0, 30, "key response time"))
     elif what in SWITCHES:
         mouse.write_scalar(SWITCHES[what], parse_switch(rest[0]))
+    elif what == "sleep":
+        if rest[0] not in SLEEP_CHOICES:
+            raise HelperError(1, "sleep must be " + ", ".join(SLEEP_CHOICES))
+        mouse.write_scalar(ADDR_SLEEP, SLEEP_CHOICES[rest[0]])
+    elif what == "long-distance":
+        set_long_distance(mouse, parse_switch(rest[0]))
     else:
         raise HelperError(1, f"unknown setting: {what}")
 
