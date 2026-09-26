@@ -105,7 +105,9 @@ var BUTTON_GROUPS = [
     "Stop Playback", "Mute", "Volume+", "Volume-", "Email", "Calculator", "My Computer",
     "Homepage", "Search", "Next page", "Previous page", "Stop page", "Refresh page", "Favorites"] },
   { value: "Toggle Decorative Lights", actions: ["Toggle All Decorative Lights",
-    "Toggle DPI Indicator Light", "Toggle Light Strip", "Cycle Light Strip Effects"] }
+    "Toggle DPI Indicator Light", "Toggle Light Strip", "Cycle Light Strip Effects"] },
+  { value: "DPI Lock", actions: ["DPI Lock 100", "DPI Lock 200", "DPI Lock 300", "DPI Lock 400", "DPI Lock 500",
+    "DPI Lock 600", "DPI Lock 700", "DPI Lock 800", "DPI Lock 900", "DPI Lock 1000"] }
 ]
 
 // Where each button sits on the mouse, in the web driver's numbering.
