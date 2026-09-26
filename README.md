@@ -16,6 +16,7 @@ Plugin id: `io.github.dankestrick.omagravastar`
 | Tab | Settings |
 | --- | --- |
 | **Overview** | DPI, polling rate, LOD, key response time, profile, battery |
+| **Buttons** | Opens a larger window: pick any of the 6 buttons from the list or the picture, then choose its action (buttons, DPI switch, scroll, 18 multimedia keys, light toggles, polling rate switch, disable) |
 | **DPI** | Number of DPI stages, each stage's DPI, active stage, polling rate (125Hz to 8000Hz), Select mode (LP / HP), LOD (0.7mm / 1mm / 2mm), Highest performance and its timer, Ripple Control, Angle snapping, Motion sync |
 | **Lighting** | Effect (Off, Rainbow, Single Color Breath, Fixed Color, Neon, Rainbow Breath, Fixed Rainbow), Brightness, Speed, turn off lights when moving, color picker with presets |
 | **Settings** | Mouse Sleep Time, Key Response Time, Long distance mode |
@@ -62,6 +63,18 @@ and places the icon on the **right** of the bar. To move it:
 omarchy bar move io.github.dankestrick.omagravastar --section right
 ```
 
+**3. Make the Buttons window float.** Add this to `~/.config/hypr/hyprland.lua`
+so the Buttons window opens as a centered floating window instead of a tiled
+one:
+
+```lua
+o.window({ title = "^OmaGravastar$" }, {
+  float = true,
+  size = { 1200, 760 },
+  center = true,
+})
+```
+
 Do not symlink a git checkout into the plugins folder. Omarchy rejects a
 plugin tree that is a symlink.
 
@@ -81,8 +94,8 @@ sure the mouse kept it, so the dropdown always shows what the mouse really has.
 Turning on **Long distance mode** asks first, like the web driver, because it
 shortens battery life.
 
-Pairing, restoring factory settings, button remapping and macros are not in
-OmaGravastar yet. Use Gravastar's web driver for those.
+Pairing, restoring factory settings, macros, combo keys, Firepower and DPI
+Lock are not in OmaGravastar yet. Use Gravastar's web driver for those.
 
 ## Troubleshooting
 

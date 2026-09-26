@@ -20,12 +20,14 @@
   ],
   "kinds": [
     "service",
-    "bar-widget"
+    "bar-widget",
+    "panel"
   ],
   "keepLoaded": true,
   "entryPoints": {
     "service": "qml/Service.qml",
-    "barWidget": "qml/BarWidget.qml"
+    "barWidget": "qml/BarWidget.qml",
+    "panel": "qml/Panel.qml"
   },
   "barWidget": {
     "displayName": "Gravastar Mouse",

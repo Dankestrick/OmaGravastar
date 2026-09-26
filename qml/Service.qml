@@ -20,6 +20,7 @@ Item {
   property var mouseSettings: null
   property string lastError: ""
   property bool panelOpen: false
+  property bool windowOpen: false
 
   readonly property string helper: Api.helperPath(Qt.resolvedUrl("../helpers/omagravastarctl"))
   readonly property bool connected: !!(status && status.connected)
@@ -124,12 +125,13 @@ Item {
   // Poll often while the panel is open, rarely otherwise; the bar only needs
   // battery and awake state.
   Timer {
-    interval: root.panelOpen ? 3000 : 60000
+    interval: root.panelOpen || root.windowOpen ? 3000 : 60000
     repeat: true
     running: true
     onTriggered: root.refresh()
   }
 
   onPanelOpenChanged: if (panelOpen) refresh()
+  onWindowOpenChanged: if (windowOpen) refresh()
   Component.onCompleted: refresh()
 }

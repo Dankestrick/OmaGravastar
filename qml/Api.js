@@ -90,3 +90,49 @@ function batteryText(status) {
   if (!status.awake) text += " · Asleep"
   return text
 }
+
+// Button actions, in the web driver's menu order. Must match ACTIONS in
+// helpers/omagravastarctl.
+var BUTTON_GROUPS = [
+  { value: "Button", actions: ["Left Click", "Right Click", "Wheel Click", "Backward", "Forward"] },
+  { value: "Polling rate switch", actions: ["Polling rate switch"] },
+  { value: "Disable", actions: ["Disable"] },
+  { value: "Scroll Left/Right", actions: ["Scroll Left", "Scroll Right"] },
+  { value: "Scroll Up/Down", actions: ["Scroll Up", "Scroll Down"] },
+  { value: "DPI Switch", actions: ["DPI loop", "DPI +", "DPI -"] },
+  { value: "Multimedia", actions: ["Media player", "Play/Pause", "Next Track", "Previous Track",
+    "Stop Playback", "Mute", "Volume+", "Volume-", "Email", "Calculator", "My Computer",
+    "Homepage", "Search", "Next page", "Previous page", "Stop page", "Refresh page", "Favorites"] },
+  { value: "Toggle Decorative Lights", actions: ["Toggle All Decorative Lights",
+    "Toggle DPI Indicator Light", "Toggle Light Strip", "Cycle Light Strip Effects"] }
+]
+
+// Where each button sits on the mouse, in the web driver's numbering.
+var BUTTON_NAMES = ["Left button", "Right button", "Wheel button", "Front side button",
+  "Rear side button", "Button under the wheel"]
+
+var DEFAULT_BUTTONS = ["Left Click", "Right Click", "Wheel Click", "Forward", "Backward", "DPI loop"]
+
+function groupOf(action) {
+  for (var i = 0; i < BUTTON_GROUPS.length; i++)
+    if (BUTTON_GROUPS[i].actions.indexOf(action) >= 0) return BUTTON_GROUPS[i].value
+  return ""
+}
+
+function groupActions(group) {
+  for (var i = 0; i < BUTTON_GROUPS.length; i++)
+    if (BUTTON_GROUPS[i].value === group) return BUTTON_GROUPS[i].actions
+  return []
+}
+
+// Marker positions on the photos, as fractions of the painted image.
+// Buttons 1-5 sit on the top photo; button 6 is on the underside inset.
+// Tuned to Dank's photos in assets/.
+var BUTTON_SPOTS = [
+  { photo: "top", x: 0.40, y: 0.45 },
+  { photo: "top", x: 0.25, y: 0.35 },
+  { photo: "top", x: 0.33, y: 0.28 },
+  { photo: "top", x: 0.60, y: 0.55 },
+  { photo: "top", x: 0.72, y: 0.48 },
+  { photo: "bottom", x: 0.50, y: 0.50 }
+]

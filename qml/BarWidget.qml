@@ -26,9 +26,18 @@ Panel {
   readonly property color dim: Qt.darker(fg, 1.4)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
-  readonly property var tabs: ["Overview", "DPI", "Lighting", "Settings", "Device"]
+  readonly property var tabs: ["Overview", "Buttons", "DPI", "Lighting", "Settings", "Device"]
   property string tab: "Overview"
   property bool confirmLongDistance: false
+  // Dropdowns inside Repeaters report their popups here so keys go to them.
+  property int openMenus: 0
+
+  readonly property var buttonList: s.buttons || []
+  readonly property int leftClickCount: {
+    var n = 0
+    for (var i = 0; i < buttonList.length; i++) if (buttonList[i].action === "Left Click") n++
+    return n
+  }
 
   readonly property string effect: Api.effectValue(light.effect)
   readonly property int activeStage: s.activeStage || 1
@@ -50,6 +59,14 @@ Panel {
   }
 
   function onOff(value) { return value ? "on" : "off" }
+
+  // The Buttons tab opens the larger floating window.
+  function openButtonsWindow(button) {
+    root.close()
+    var host = bar ? bar.shell : null
+    if (host && typeof host.summon === "function")
+      host.summon(moduleName, JSON.stringify({ button: button || 1 }))
+  }
 
   onOpenedChanged: if (mouse) mouse.panelOpen = opened
 
@@ -76,14 +93,14 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(420))
+    contentWidth: panel.fittedContentWidth(Style.space(500))
     contentHeight: panel.fittedContentHeight(column.implicitHeight)
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
       blocked: effectMenu.popupOpen || sleepMenu.popupOpen || timerMenu.popupOpen
-        || countMenu.popupOpen || root.confirmLongDistance
+        || countMenu.popupOpen || root.openMenus > 0 || root.confirmLongDistance
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onMoveRequested: function(dx, dy) {
@@ -154,7 +171,10 @@ Panel {
           focusable: false
           foreground: root.fg
           fontFamily: root.fontFamily
-          onChanged: function(v) { root.tab = v }
+          onChanged: function(v) {
+            root.tab = v
+            if (v === "Buttons") root.openButtonsWindow(1)
+          }
         }
 
         Text {
@@ -204,6 +224,142 @@ Panel {
           InfoRow { label: "Key Response Time"; value: root.s.keyResponseMs !== undefined ? root.s.keyResponseMs + "ms" : "—" }
           InfoRow { label: "Configuration"; value: root.status.profile ? "Profile " + root.status.profile : "—" }
           InfoRow { label: "Battery"; value: root.mouse ? root.mouse.batteryText : "—" }
+        }
+
+        // ---------- Buttons ----------
+        Column {
+          visible: root.tab === "Buttons" && root.known
+          width: parent.width
+          spacing: Style.space(8)
+
+          Repeater {
+            model: root.buttonList
+            delegate: Item {
+              id: buttonRow
+              required property var modelData
+              required property int index
+              readonly property string action: modelData.action
+              readonly property string group: Api.groupOf(action)
+              // The web driver never lets the last Left Click go.
+              readonly property bool locked: action === "Left Click" && root.leftClickCount <= 1
+              readonly property bool editable: root.canEdit && !locked && group !== ""
+
+              width: parent.width
+              implicitHeight: Math.max(buttonLabel.implicitHeight, groupMenu.implicitHeight)
+
+              Row {
+                id: buttonLabel
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(8)
+
+                Rectangle {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(20)
+                  height: width
+                  radius: width / 2
+                  color: "transparent"
+                  border.width: 1
+                  border.color: root.fg
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.centerIn: parent
+                    text: String(buttonRow.index + 1)
+                    color: root.fg
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                  }
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(120)
+                  elide: Text.ElideRight
+                  text: Api.BUTTON_NAMES[buttonRow.index] || ""
+                  color: root.fg
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                }
+              }
+
+              Dropdown {
+                id: actionMenu
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: Style.space(150)
+                showLabel: false
+                visible: Api.groupActions(buttonRow.group).length > 1
+                enabled: buttonRow.editable
+                options: Api.groupActions(buttonRow.group)
+                value: buttonRow.action
+                fontFamily: root.fontFamily
+                onPopupOpenChanged: root.openMenus += popupOpen ? 1 : -1
+                onChanged: function(v) { root.send(["button", String(buttonRow.index + 1), v]) }
+              }
+
+              Dropdown {
+                id: groupMenu
+                anchors.right: actionMenu.visible ? actionMenu.left : parent.right
+                anchors.rightMargin: actionMenu.visible ? Style.space(6) : 0
+                anchors.verticalCenter: parent.verticalCenter
+                width: actionMenu.visible ? Style.space(140) : Style.space(296)
+                showLabel: false
+                enabled: buttonRow.editable
+                options: buttonRow.group !== "" ? Api.BUTTON_GROUPS.map(function(g) { return g.value })
+                  : [buttonRow.action]
+                value: buttonRow.group !== "" ? buttonRow.group : buttonRow.action
+                fontFamily: root.fontFamily
+                onPopupOpenChanged: root.openMenus += popupOpen ? 1 : -1
+                onChanged: function(v) {
+                  if (v !== buttonRow.group) root.send(["button", String(buttonRow.index + 1), Api.groupActions(v)[0]])
+                }
+              }
+
+              PanelToolTip {
+                visible: buttonRow.locked && lockHover.hovered
+                text: "Must keep left key."
+                fontFamily: root.fontFamily
+              }
+
+              HoverHandler { id: lockHover }
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            wrapMode: Text.WordWrap
+            topPadding: Style.space(4)
+            text: "One button always stays on Left Click. Macros, combo keys, Firepower and DPI Lock are set in Gravastar's web driver for now."
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          Button {
+            text: "Open buttons window"
+            bordered: true
+            foreground: root.fg
+            fontFamily: root.fontFamily
+            onClicked: root.openButtonsWindow(1)
+          }
+
+          Button {
+            text: "Restore default buttons"
+            bordered: true
+            enabled: root.canEdit
+            foreground: root.fg
+            fontFamily: root.fontFamily
+            onClicked: {
+              // Put Left Click back first so the safety rule never blocks a step.
+              var order = [0, 1, 2, 3, 4, 5]
+              for (var i = 0; i < order.length; i++)
+                root.mouse.change(["button", String(order[i] + 1), Api.DEFAULT_BUTTONS[order[i]]], "button " + (order[i] + 1))
+            }
+          }
         }
 
         // ---------- DPI ----------
@@ -619,7 +775,7 @@ Panel {
             label: "Key Response Time (ms)"
             NumberField {
               from: 0
-              to: 30
+              to: 15
               enabled: root.canEdit
               value: root.s.keyResponseMs || 0
               foreground: root.fg
