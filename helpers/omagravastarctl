@@ -22,6 +22,8 @@ Usage:
   omagravastarctl set sensor-mode <lp|hp>   (Corded is automatic above 1000 Hz)
   omagravastarctl button <1-6> <action>     (see `omagravastarctl actions`)
   omagravastarctl actions
+  omagravastarctl export <file.bin>         (current profile, Gravastar web driver format)
+  omagravastarctl import <file.bin>         (into the current profile; backs it up first)
   omagravastarctl light effect <off|rainbow|single-color-breath|fixed-color|neon|rainbow-breath|fixed-rainbow>
   omagravastarctl light color <#rrggbb>
   omagravastarctl light brightness <1-10>
@@ -577,6 +579,113 @@ def run_button(mouse, args):
     mouse.write(ADDR_BUTTONS + slot * 4, entry)
 
 
+# ---- Export / import (same .bin format as Gravastar's web driver) ------------
+# The file is the web driver's 16 KB copy of the mouse's memory for one
+# profile, with 0xff wherever it did not read, then a 64-byte tag:
+# "Compx Inc" at +0, device type at +32, sensor type at +48.
+FLASH_SIZE = 16384
+TAG_LEN = 64
+DEVICE_TYPE = "mouse"
+SENSOR_TYPE = "3395"
+MAX_DPI_STAGES = 8
+ADDR_MACROS = 0x300
+MACRO_LEN = 384
+ADDR_SENSOR_EXTRA = 0x1B00    # Sensor3955DPI .. EndEeprom in the web driver
+SENSOR_EXTRA_END = 0x1B55
+REGIONS = [
+    (0x000, 0x100),                                   # settings block
+    (ADDR_SHORTCUTS, ADDR_SHORTCUTS + 6 * SHORTCUT_LEN),  # multimedia / combo records
+    (ADDR_MACROS, ADDR_MACROS + 6 * MACRO_LEN),       # macros
+    (ADDR_SENSOR_EXTRA, SENSOR_EXTRA_END),
+]
+
+
+def backup_dir():
+    return os.path.join(os.path.dirname(cache_path()), "backups")
+
+
+def read_image(mouse):
+    image = bytearray(b"\xff" * FLASH_SIZE)
+    for start, end in REGIONS:
+        image[start:end] = mouse.read(start, end - start)
+    return image
+
+
+def tagged(image):
+    tag = bytearray(TAG_LEN)
+    for offset, text in ((0, "Compx Inc"), (32, DEVICE_TYPE), (48, SENSOR_TYPE)):
+        tag[offset:offset + len(text)] = text.encode()
+    return bytes(image) + bytes(tag)
+
+
+def write_file(path, data):
+    path = os.path.abspath(os.path.expanduser(path))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "wb") as f:
+        f.write(data)
+    os.replace(path + ".tmp", path)
+    return path
+
+
+def run_export(mouse, args):
+    if len(args) != 1:
+        raise HelperError(1, "usage: export <file.bin>")
+    return write_file(args[0], tagged(read_image(mouse)))
+
+
+def parse_import(data):
+    if len(data) <= TAG_LEN:
+        raise HelperError(1, "That file is too small to be a mouse profile.")
+    tag = data[-TAG_LEN:]
+    text = lambda a, b: tag[a:b].rstrip(b"\0").decode("utf-8", "replace")
+    if text(0, 32) != "Compx Inc":
+        raise HelperError(1, "The imported configuration is incorrect.")
+    if text(32, 48) != DEVICE_TYPE or text(48, 64) != SENSOR_TYPE:
+        raise HelperError(1, "The imported configuration does not match this device.")
+    image = bytearray(data[:-TAG_LEN])
+    if len(image) < FLASH_SIZE:
+        image += b"\xff" * (FLASH_SIZE - len(image))
+    # Same clamps as the web driver: polling and DPI stages within range.
+    if image[0] not in POLLING_HZ:
+        image[0] = POLLING_RAW[8000]
+    image[1] = (0x55 - image[0]) & 0xFF
+    if not 1 <= image[2] <= MAX_DPI_STAGES:
+        image[2] = min(max(image[2], 1), MAX_DPI_STAGES)
+    image[3] = (0x55 - image[2]) & 0xFF
+    if image[4] > image[2] - 1:
+        image[4] = image[2] - 1
+    image[5] = (0x55 - image[4]) & 0xFF
+    return image
+
+
+def run_import(mouse, args):
+    if len(args) != 1:
+        raise HelperError(1, "usage: import <file.bin>")
+    try:
+        with open(os.path.expanduser(args[0]), "rb") as f:
+            data = f.read()
+    except OSError as error:
+        raise HelperError(1, f"Could not read {args[0]}: {error.strerror}")
+    image = parse_import(data)
+    current = read_image(mouse)
+    profile = mouse.transact(CMD_PROFILE)
+    number = profile[5] + 1 if profile is not None and profile[1] == 0 else 0
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    backup = write_file(os.path.join(backup_dir(), f"profile-{number}-before-import-{stamp}.bin"), tagged(current))
+    written = 0
+    for start, end in REGIONS:
+        if start == 0:
+            # Only up to the last byte the file actually uses, like the web driver.
+            used = [i for i in range(0x100) if image[i] != 0xFF]
+            end = (used[-1] + 1) if used else 0
+        for chunk in range(start, end, MAX_CHUNK):
+            stop = min(chunk + MAX_CHUNK, end)
+            if image[chunk:stop] != current[chunk:stop]:
+                mouse.write(chunk, image[chunk:stop])
+                written += 1
+    return {"backup": backup, "chunksWritten": written}
+
+
 def run_light(mouse, args):
     if len(args) != 2:
         raise HelperError(1, "light needs a setting and a value")
@@ -645,6 +754,16 @@ def main(argv):
         try:
             if argv[0] == "status":
                 result = read_status(mouse)
+            elif argv[0] in ("export", "import"):
+                mouse.require_awake()
+                if argv[0] == "export":
+                    saved = run_export(mouse, argv[1:])
+                    result = read_status(mouse)
+                    result.update({"ok": True, "file": saved})
+                else:
+                    info = run_import(mouse, argv[1:])
+                    result = read_status(mouse)
+                    result.update({"ok": True}, **info)
             elif argv[0] in ("set", "light", "button"):
                 mouse.require_awake()
                 {"set": run_set, "light": run_light, "button": run_button}[argv[0]](mouse, argv[1:])
