@@ -49,9 +49,20 @@ Item {
     return names
   }
   // Button groups plus a Macro group listing the saved macros.
-  readonly property var groups: Api.BUTTON_GROUPS.concat([{ value: "Macro", actions: macroNames }])
+  readonly property var groups: Api.BUTTON_GROUPS.concat([{ value: "Firepower Button", actions: [] },
+                                                           { value: "Macro", actions: macroNames }])
   readonly property string currentAction: current.group === 6 && current.macro ? current.macro.name : current.action
-  readonly property string currentGroup: current.group === 6 ? "Macro" : Api.groupOf(current.action)
+  readonly property string currentGroup: current.group === 6 ? "Macro" : current.group === 4 ? "Firepower Button"
+    : Api.groupOf(current.action)
+  property int fireTimes: 0
+  property int fireInterval: 50
+  onCurrentChanged: if (current.firepower) { fireTimes = current.firepower.times; fireInterval = current.firepower.interval }
+
+  function applyFirepower() {
+    if (!service || !canEdit || currentLocked) return
+    service.change(["firepower", String(selected), String(fireTimes), String(fireInterval)], "button " + selected)
+    browseGroup = ""
+  }
   property string browseGroup: ""
   readonly property string shownGroup: browseGroup !== "" ? browseGroup : currentGroup
   readonly property bool currentLocked: current.action === "Left Click" && leftClickCount <= 1
@@ -366,7 +377,10 @@ Item {
                   }
                   Text {
                     textFormat: Text.PlainText
-                    text: row.modelData.group === 6 && row.modelData.macro ? "Macro: " + row.modelData.macro.name : row.modelData.action
+                    text: row.modelData.group === 6 && row.modelData.macro ? "Macro: " + row.modelData.macro.name
+                      : row.modelData.firepower ? "Firepower: " + (row.modelData.firepower.times === 0 ? "while held"
+                        : row.modelData.firepower.times + "×") + " every " + row.modelData.firepower.interval + " ms"
+                      : row.modelData.action
                     color: root.fg
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.body
@@ -446,8 +460,52 @@ Item {
               }
             }
 
+            // Firepower: times and interval instead of a list.
+            Column {
+              visible: root.shownGroup === "Firepower Button"
+              width: parent.width - Style.space(215)
+              spacing: Style.space(10)
+
+              Row {
+                spacing: Style.space(10)
+                Text { anchors.verticalCenter: parent.verticalCenter; width: Style.space(135); text: "Times (0-3)"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                NumberField {
+                  anchors.verticalCenter: parent.verticalCenter
+                  from: 0; to: 3; value: root.fireTimes
+                  foreground: root.fg; fontFamily: root.fontFamily
+                  onModified: function(v) { root.fireTimes = v }
+                }
+              }
+              Row {
+                spacing: Style.space(10)
+                Text { anchors.verticalCenter: parent.verticalCenter; width: Style.space(135); text: "Interval (10-255)"; color: root.fg; font.family: root.fontFamily; font.pixelSize: Style.font.body }
+                NumberField {
+                  anchors.verticalCenter: parent.verticalCenter
+                  from: 10; to: 255; value: root.fireInterval
+                  foreground: root.fg; fontFamily: root.fontFamily
+                  onModified: function(v) { root.fireInterval = v }
+                }
+              }
+              Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "Clicks the left button this many times, this many ms apart. When the number of times is set to 0, the key will keep sending signals when pressed and stop when released."
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+              Button {
+                text: root.current.group === 4 ? "Update Firepower" : "Use Firepower"
+                bordered: true
+                foreground: root.fg
+                fontFamily: root.fontFamily
+                onClicked: root.applyFirepower()
+              }
+            }
+
             // Actions in the group.
             ListView {
+              visible: root.shownGroup !== "Firepower Button"
               width: parent.width - Style.space(215)
               height: parent.height
               clip: true
