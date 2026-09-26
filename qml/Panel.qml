@@ -6,9 +6,10 @@ import qs.Commons
 import qs.Ui
 import "Api.js" as Api
 
-// The Buttons window: a floating window like OmaPandora's full player, with
-// the button list on the left, the mouse picture with numbered markers in the
-// middle, and the actions for the selected button on the right.
+// The big window, a floating window like OmaPandora's full player. The
+// Buttons view has the button list on the left, the mouse picture with
+// numbered markers in the middle and the actions on the right. The Macros
+// view (MacroView.qml) edits macros.
 Item {
   id: root
 
@@ -18,6 +19,7 @@ Item {
   property bool opened: false
   property bool closingFromHost: false
   property int selected: 1
+  property string view: "buttons"
 
   readonly property string pluginId: manifest && manifest.id
     ? String(manifest.id) : "io.github.dankestrick.omagravastar"
@@ -40,7 +42,16 @@ Item {
     return n
   }
   readonly property var current: buttonList[selected - 1] || ({ action: "" })
-  readonly property string currentGroup: Api.groupOf(current.action)
+  readonly property var macroNames: {
+    var names = []
+    var list = service ? service.macros : []
+    for (var i = 0; i < list.length; i++) names.push(list[i].name)
+    return names
+  }
+  // Button groups plus a Macro group listing the saved macros.
+  readonly property var groups: Api.BUTTON_GROUPS.concat([{ value: "Macro", actions: macroNames }])
+  readonly property string currentAction: current.group === 6 && current.macro ? current.macro.name : current.action
+  readonly property string currentGroup: current.group === 6 ? "Macro" : Api.groupOf(current.action)
   property string browseGroup: ""
   readonly property string shownGroup: browseGroup !== "" ? browseGroup : currentGroup
   readonly property bool currentLocked: current.action === "Left Click" && leftClickCount <= 1
@@ -56,6 +67,7 @@ Item {
     try {
       var payload = JSON.parse(payloadJson || "{}")
       if (payload.button >= 1 && payload.button <= 6) selected = payload.button
+      view = payload.view === "macros" ? "macros" : "buttons"
     } catch (e) {}
     browseGroup = ""
     opened = true
@@ -87,8 +99,18 @@ Item {
 
   function assign(action) {
     if (!service || !canEdit || currentLocked) return
-    service.change(["button", String(selected), action], "button " + selected)
+    if (shownGroup === "Macro") {
+      var i = service.macroIndex(action)
+      if (i >= 0) service.assignMacro(selected, service.macros[i])
+    } else {
+      service.change(["button", String(selected), action], "button " + selected)
+    }
     browseGroup = ""
+  }
+
+  function groupActions(group) {
+    for (var i = 0; i < groups.length; i++) if (groups[i].value === group) return groups[i].actions
+    return []
   }
 
   function restoreDefaults() {
@@ -113,8 +135,14 @@ Item {
     FocusScope {
       anchors.fill: parent
       focus: true
+      Keys.onReleased: function(event) {
+        if (root.view === "macros" && macroView.handleKey(event, false)) event.accepted = true
+      }
       Keys.onPressed: function(event) {
+        // While recording, every key belongs to the macro.
+        if (root.view === "macros" && macroView.handleKey(event, true)) { event.accepted = true; return }
         if (event.key === Qt.Key_Escape) { root.requestClose(); event.accepted = true }
+        else if (root.view === "macros") return
         else if (event.key === Qt.Key_M) { root.showMini(); event.accepted = true }
         else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) { root.select(Math.min(6, root.selected + 1)); event.accepted = true }
         else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) { root.select(Math.max(1, root.selected - 1)); event.accepted = true }
@@ -152,7 +180,7 @@ Item {
               anchors.verticalCenter: parent.verticalCenter
               Text {
                 textFormat: Text.PlainText
-                text: "Mercury X Pro · Buttons"
+                text: "Mercury X Pro · " + (root.view === "macros" ? "Macros" : "Buttons")
                 color: root.fg
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.heading
@@ -209,6 +237,18 @@ Item {
             onChanged: function(v) {
               if (root.service) root.service.change(["set", "profile", v.replace("Profile ", "")])
             }
+          }
+
+          ButtonGroup {
+            anchors.left: title.right
+            anchors.leftMargin: Style.space(28)
+            anchors.verticalCenter: parent.verticalCenter
+            options: ["Buttons", "Macros"]
+            value: root.view === "macros" ? "Macros" : "Buttons"
+            focusable: false
+            foreground: root.fg
+            fontFamily: root.fontFamily
+            onChanged: function(v) { root.view = v === "Macros" ? "macros" : "buttons" }
           }
 
           ToggleSwitch {
@@ -273,6 +313,7 @@ Item {
         // ---------- Left: button list ----------
         Column {
           id: buttonColumn
+          visible: root.view === "buttons"
           anchors.top: headerRule.bottom
           anchors.topMargin: Style.space(40)
           anchors.left: parent.left
@@ -325,7 +366,7 @@ Item {
                   }
                   Text {
                     textFormat: Text.PlainText
-                    text: row.modelData.action
+                    text: row.modelData.group === 6 && row.modelData.macro ? "Macro: " + row.modelData.macro.name : row.modelData.action
                     color: root.fg
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.body
@@ -340,6 +381,7 @@ Item {
         // ---------- Right: actions ----------
         Item {
           id: actionColumn
+          visible: root.view === "buttons"
           anchors.top: headerRule.bottom
           anchors.topMargin: Style.space(40)
           anchors.right: parent.right
@@ -361,10 +403,11 @@ Item {
               textFormat: Text.PlainText
               width: parent.width
               wrapMode: Text.WordWrap
-              visible: root.currentLocked || root.currentGroup === ""
+              visible: root.currentLocked || root.currentGroup === "" || (root.shownGroup === "Macro" && root.macroNames.length === 0)
               text: root.currentLocked
                 ? "Must keep left key. Set another button to Left Click first."
-                : "This button uses " + root.current.action + ", which is set in Gravastar's web driver."
+                : root.currentGroup === "" ? "This button uses " + root.current.action + ", which is set in Gravastar's web driver."
+                : "No macros yet. Make one in the Macros view."
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
@@ -387,7 +430,7 @@ Item {
               height: parent.height
               clip: true
               spacing: Style.space(4)
-              model: Api.BUTTON_GROUPS
+              model: root.groups
               delegate: Button {
                 required property var modelData
                 width: ListView.view.width
@@ -397,7 +440,7 @@ Item {
                 foreground: root.fg
                 fontFamily: root.fontFamily
                 onClicked: {
-                  if (modelData.actions.length === 1) root.assign(modelData.actions[0])
+                  if (modelData.value !== "Macro" && modelData.actions.length === 1) root.assign(modelData.actions[0])
                   else root.browseGroup = modelData.value
                 }
               }
@@ -409,15 +452,15 @@ Item {
               height: parent.height
               clip: true
               spacing: Style.space(4)
-              model: Api.groupActions(root.shownGroup)
+              model: root.groupActions(root.shownGroup)
               ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
               delegate: Button {
                 required property string modelData
                 width: ListView.view.width
                 leftAlign: true
                 text: modelData
-                bordered: root.current.action === modelData
-                selected: root.current.action === modelData
+                bordered: root.currentAction === modelData && root.shownGroup === root.currentGroup
+                selected: root.currentAction === modelData && root.shownGroup === root.currentGroup
                 foreground: root.fg
                 fontFamily: root.fontFamily
                 onClicked: root.assign(modelData)
@@ -438,9 +481,26 @@ Item {
           }
         }
 
+        MacroView {
+          id: macroView
+          visible: root.view === "macros"
+          anchors.top: headerRule.bottom
+          anchors.topMargin: Style.space(40)
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.bottom: parent.bottom
+          service: root.service
+          fg: root.fg
+          dim: root.dim
+          markerColor: root.markerColor
+          fontFamily: root.fontFamily
+          canEdit: root.canEdit
+        }
+
         // ---------- Middle: mouse picture with markers ----------
         Item {
           id: pictureArea
+          visible: root.view === "buttons"
           anchors.top: headerRule.bottom
           anchors.topMargin: Style.space(24)
           anchors.bottom: parent.bottom

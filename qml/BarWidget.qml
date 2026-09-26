@@ -27,7 +27,7 @@ Panel {
   readonly property color dim: Qt.darker(fg, 1.4)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
-  readonly property var tabs: ["Overview", "Buttons", "DPI", "Lighting", "Settings", "Device"]
+  readonly property var tabs: ["Overview", "Buttons", "DPI", "Macros", "Lighting", "Settings", "Device"]
   property string tab: "Overview"
   // The tab to come back to after the Buttons window.
   property string returnTab: "Overview"
@@ -64,12 +64,15 @@ Panel {
   function onOff(value) { return value ? "on" : "off" }
 
   // The Buttons tab opens the larger floating window.
-  function openButtonsWindow(button) {
-    if (root.tab !== "Buttons") root.returnTab = root.tab
+  function openButtonsWindow(button) { openWindow("buttons", button) }
+
+  // The big window has two views: buttons and macros.
+  function openWindow(view, button) {
+    if (root.tab !== "Buttons" && root.tab !== "Macros") root.returnTab = root.tab
     root.close()
     var host = bar ? bar.shell : null
     if (host && typeof host.summon === "function")
-      host.summon(moduleName, JSON.stringify({ button: button || 1 }))
+      host.summon(moduleName, JSON.stringify({ view: view, button: button || 1 }))
   }
 
   onOpenedChanged: if (mouse) mouse.panelOpen = opened
@@ -112,7 +115,7 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(500))
+    contentWidth: panel.fittedContentWidth(Style.space(590))
     contentHeight: panel.fittedContentHeight(column.implicitHeight)
 
     PanelKeyCatcher {
@@ -208,6 +211,7 @@ Panel {
           fontFamily: root.fontFamily
           onChanged: function(v) {
             if (v === "Buttons") root.openButtonsWindow(1)
+            else if (v === "Macros") root.openWindow("macros", 1)
             else root.tab = v
           }
         }
@@ -329,7 +333,8 @@ Panel {
               id: buttonRow
               required property var modelData
               required property int index
-              readonly property string action: modelData.action
+              readonly property string action: modelData.group === 6 && modelData.macro
+                ? "Macro: " + modelData.macro.name : modelData.action
               readonly property string group: Api.groupOf(action)
               // The web driver never lets the last Left Click go.
               readonly property bool locked: action === "Left Click" && root.leftClickCount <= 1

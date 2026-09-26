@@ -102,6 +102,58 @@ Item {
     }
   }
 
+  // ---- Macro list -------------------------------------------------------
+  // Gravastar's web driver keeps its macro list in the browser; the mouse
+  // only stores macros that are on a button. This list is ours, saved to
+  // ~/.config/omagravastar/macros.json.
+  property var macros: []
+  readonly property string macroFile: (Quickshell.env("XDG_CONFIG_HOME") || ((Quickshell.env("HOME") || "") + "/.config"))
+    + "/omagravastar/macros.json"
+
+  function macroIndex(name) {
+    for (var i = 0; i < macros.length; i++) if (macros[i].name === name) return i
+    return -1
+  }
+
+  function saveMacros(list) {
+    macros = list
+    macroStore.setText(JSON.stringify(list, null, 2) + "\n")
+  }
+
+  // Macros already on the mouse's buttons join the list so they can be edited.
+  function adoptMouseMacros(settings) {
+    var buttons = settings && settings.buttons ? settings.buttons : []
+    var list = macros.slice(), changed = false
+    for (var i = 0; i < buttons.length; i++) {
+      var m = buttons[i].macro
+      if (!m || !m.name || macroIndex(m.name) >= 0) continue
+      var known = false
+      for (var j = 0; j < list.length; j++) if (list[j].name === m.name) known = true
+      if (known) continue
+      list.push({ name: m.name, method: buttons[i].method || 1, events: m.events })
+      changed = true
+    }
+    if (changed) saveMacros(list)
+  }
+
+  // Put a macro on a button (1-6).
+  function assignMacro(button, macro) {
+    change(["macro", String(button), JSON.stringify({ name: macro.name, method: macro.method || 1, events: macro.events })],
+      "button " + button)
+  }
+
+  FileView {
+    id: macroStore
+    path: root.macroFile
+    printErrors: false
+    atomicWrites: true
+    onLoaded: {
+      var data = Api.parseJson(text())
+      root.macros = data instanceof Array ? data : []
+    }
+    onLoadFailed: root.macros = []
+  }
+
   // Changes wait here while another command runs. Keyed by setting so a slider
   // drag only sends its final value.
   property var pending: []
@@ -140,7 +192,10 @@ Item {
     if (data.connected && !data.awake && data.battery === undefined && status && status.battery !== undefined)
       data = Object.assign({}, data, { battery: status.battery, charging: status.charging })
     status = data
-    if (data.settings) mouseSettings = data.settings
+    if (data.settings) {
+      mouseSettings = data.settings
+      if (data.awake) adoptMouseMacros(data.settings)
+    }
     checkBattery()
   }
 
@@ -207,5 +262,8 @@ Item {
 
   onPanelOpenChanged: if (panelOpen) refresh()
   onWindowOpenChanged: if (windowOpen) refresh()
-  Component.onCompleted: refresh()
+  Component.onCompleted: {
+    Quickshell.execDetached(["mkdir", "-p", macroFile.replace(/\/[^/]*$/, "")])
+    refresh()
+  }
 }
