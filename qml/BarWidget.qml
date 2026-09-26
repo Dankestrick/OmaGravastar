@@ -458,6 +458,41 @@ Panel {
           }
         }
 
+        // ---------- Macros (compact; the window has the editor) ----------
+        Column {
+          visible: root.tab === "Macros" && root.known
+          width: parent.width
+          spacing: Style.space(8)
+
+          Repeater {
+            model: root.mouse ? root.mouse.macros : []
+            delegate: InfoRow {
+              required property var modelData
+              label: modelData.name
+              value: Api.methodLabel(modelData.method || 1) + " · " + (modelData.events ? modelData.events.length : 0) + " events"
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            visible: !root.mouse || root.mouse.macros.length === 0
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: "No macros yet."
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Button {
+            text: "Open macros window"
+            bordered: true
+            foreground: root.fg
+            fontFamily: root.fontFamily
+            onClicked: root.openWindow("macros", 1)
+          }
+        }
+
         // ---------- DPI ----------
         Column {
           visible: root.tab === "DPI" && root.known

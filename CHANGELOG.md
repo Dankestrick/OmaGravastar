@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+- Buttons window: a larger floating window with a photo of the mouse and numbered, clickable buttons, opened from the Buttons tab. A switch (or `M`) goes back to the dropdown on the same monitor.
+- Button actions: Button, DPI Switch, Scroll, 18 Multimedia keys, light toggles, Polling rate switch, Profile switch, Disable, Firepower Button and DPI Lock. One button always stays on Left Click.
+- Macros window: macro list, key list with delays, recording (keys and mouse clicks), auto or fixed delay, Insert command, execution method, and Put on button. The list is kept in `~/.config/omagravastar/macros.json`.
+- Profiles: switch between the mouse's 4 onboard profiles. Export and Import a profile in Gravastar's web driver `.bin` format, with a backup before every import.
+- Button markers use the mouse's Fixed Color.
+- Key Response Time is capped at the mouse's 15 ms.
+- Fixed: writes longer than 10 bytes are split into the mouse's packet size.
+
 ## 0.1.0
 
 First version.
