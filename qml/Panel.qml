@@ -170,6 +170,31 @@ Item {
             }
           }
 
+          Row {
+            anchors.right: profileMenu.left
+            anchors.rightMargin: Style.space(10)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(8)
+            Button {
+              text: "Export"
+              bordered: true
+              enabled: root.canEdit
+              foreground: root.fg
+              fontFamily: root.fontFamily
+              tooltipText: "Save this profile to a file"
+              onClicked: root.service.exportProfile()
+            }
+            Button {
+              text: "Import"
+              bordered: true
+              enabled: root.canEdit
+              foreground: root.fg
+              fontFamily: root.fontFamily
+              tooltipText: "Load a profile file into this profile"
+              onClicked: root.service.importProfile()
+            }
+          }
+
           Dropdown {
             id: profileMenu
             anchors.right: miniSwitch.left
@@ -221,6 +246,17 @@ Item {
           anchors.left: parent.left
           anchors.right: parent.right
           foreground: root.fg
+        }
+
+        Text {
+          anchors.top: headerRule.bottom
+          anchors.topMargin: Style.space(10)
+          anchors.right: parent.right
+          visible: !!root.service && root.service.notice !== ""
+          text: root.service ? root.service.notice : ""
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
         }
 
         Text {

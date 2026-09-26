@@ -46,6 +46,62 @@ Item {
   readonly property bool charging: !!(status && status.charging)
   readonly property string batteryText: Api.batteryText(status)
 
+  // Export / import. The file picker and the confirm step run here, not in
+  // the dropdown, so they keep going if the dropdown closes behind them.
+  property string notice: ""
+  property string pickerStep: ""
+  property string importPath: ""
+  readonly property string profileFolder: (Quickshell.env("HOME") || "") + "/Documents/OmaGravastar"
+  readonly property int profileNumber: status && status.profile ? Number(status.profile) : 1
+
+  function exportProfile() {
+    if (picker.running) return
+    pickerStep = "export"
+    picker.command = ["sh", "-c", 'mkdir -p "$1" && zenity --file-selection --save --confirm-overwrite '
+      + '--title="Export mouse profile" --filename="$1/$2" --file-filter="Mouse profile (.bin) | *.bin"',
+      "sh", profileFolder, "Mercury X Pro - Profile " + profileNumber + ".bin"]
+    picker.running = true
+  }
+
+  function importProfile() {
+    if (picker.running) return
+    pickerStep = "import"
+    picker.command = ["sh", "-c", 'mkdir -p "$1" && zenity --file-selection --title="Import mouse profile" '
+      + '--filename="$1/" --file-filter="Mouse profile (.bin) | *.bin"', "sh", profileFolder]
+    picker.running = true
+  }
+
+  Process {
+    id: picker
+    stdout: StdioCollector { id: pickerOut; waitForEnd: true }
+    onExited: function(code) {
+      var path = String(pickerOut.text || "").trim()
+      var step = root.pickerStep
+      root.pickerStep = ""
+      if (step === "confirm") {
+        if (code === 0) {
+          root.notice = "Importing into Profile " + root.profileNumber + "…"
+          root.change(["import", root.importPath], "import")
+        }
+        return
+      }
+      if (code !== 0 || path === "") return
+      if (step === "export") {
+        if (!/\.bin$/.test(path)) path += ".bin"
+        root.notice = "Exporting Profile " + root.profileNumber + "…"
+        root.change(["export", path], "export")
+      } else if (step === "import") {
+        root.importPath = path
+        root.pickerStep = "confirm"
+        picker.command = ["zenity", "--question", "--title=Import mouse profile",
+          "--ok-label=Import", "--cancel-label=Cancel",
+          "--text=Import " + path.split("/").pop() + " into Profile " + root.profileNumber
+            + "?\n\nIts current settings are replaced. A backup is saved first."]
+        picker.running = true
+      }
+    }
+  }
+
   // Changes wait here while another command runs. Keyed by setting so a slider
   // drag only sends its final value.
   property var pending: []
@@ -127,6 +183,8 @@ Item {
       var data = Api.parseJson(actionOut.text)
       if (code === 0 && data) {
         root.lastError = ""
+        if (data.file) root.notice = "Saved " + String(data.file).split("/").pop()
+        else if (data.backup) root.notice = "Imported. The old settings were backed up to " + data.backup
         root.accept(data)
       } else {
         root.lastError = data && data.error ? String(data.error)

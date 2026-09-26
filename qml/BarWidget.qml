@@ -282,6 +282,39 @@ Panel {
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
           }
+
+          Row {
+            spacing: Style.space(8)
+            Button {
+              text: "Export"
+              bordered: true
+              enabled: root.canEdit
+              foreground: root.fg
+              fontFamily: root.fontFamily
+              tooltipText: "Save this profile to a file"
+              onClicked: root.mouse.exportProfile()
+            }
+            Button {
+              text: "Import"
+              bordered: true
+              enabled: root.canEdit
+              foreground: root.fg
+              fontFamily: root.fontFamily
+              tooltipText: "Load a profile file into this profile"
+              onClicked: root.mouse.importProfile()
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            visible: !!root.mouse && root.mouse.notice !== ""
+            width: parent.width
+            wrapMode: Text.WrapAnywhere
+            text: root.mouse ? root.mouse.notice : ""
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
         }
 
         // ---------- Buttons ----------
