@@ -10,6 +10,7 @@ Usage:
   omagravastarctl status
   omagravastarctl set dpi-stage <stage 1-8> <dpi>
   omagravastarctl set active-stage <stage 1-8>
+  omagravastarctl set stage-count <1-8>
   omagravastarctl set polling <125|250|500|1000|2000|4000|8000>
   omagravastarctl set key-response <ms 0-30>
   omagravastarctl set lod <0.7mm|1mm|2mm>
@@ -59,6 +60,7 @@ ADDR_STAGE_COUNT = 0x02
 ADDR_ACTIVE_STAGE = 0x04
 ADDR_LOD = 0x0A
 ADDR_DPI_STAGES = 0x0C
+ADDR_DPI_COLORS = 0x2C
 ADDR_LIGHTING = 0xA0
 LIGHTING_LEN = 7
 ADDR_LIGHTS_ON = 0xA7
@@ -283,6 +285,10 @@ def read_settings(mouse):
     active = scalar(block, ADDR_ACTIVE_STAGE)
     stages = [decode_dpi(block[ADDR_DPI_STAGES + i * 4:ADDR_DPI_STAGES + i * 4 + 4])
               for i in range(stage_count)]
+    colors = []
+    for i in range(stage_count):
+        r, g, b, check = block[ADDR_DPI_COLORS + i * 4:ADDR_DPI_COLORS + i * 4 + 4]
+        colors.append("#{:02x}{:02x}{:02x}".format(r, g, b) if (r + g + b + check) & 0xFF == 0x55 else None)
     light = block[ADDR_LIGHTING:ADDR_LIGHTING + LIGHTING_LEN]
     light_ok = sum(light) & 0xFF == 0x55
     lights_on = scalar(block, ADDR_LIGHTS_ON)
@@ -292,6 +298,7 @@ def read_settings(mouse):
     return {
         "pollingHz": POLLING_HZ.get(scalar(block, ADDR_POLLING)),
         "dpiStages": stages,
+        "dpiColors": colors,
         "activeStage": None if active is None else active + 1,
         "dpi": stages[active] if active is not None and active < len(stages) else None,
         "lod": LOD_NAMES.get(lod),
@@ -399,6 +406,12 @@ def run_set(mouse, args):
         if dpi % 50:
             raise HelperError(1, "DPI must be a multiple of 50")
         mouse.write(ADDR_DPI_STAGES + (stage - 1) * 4, encode_dpi(dpi))
+    elif what == "stage-count":
+        count = parse_int(rest[0], 1, 8, "stage count")
+        active = scalar(mouse.read(ADDR_ACTIVE_STAGE, 2), 0) or 0
+        if active > count - 1:
+            mouse.write_scalar(ADDR_ACTIVE_STAGE, count - 1)
+        mouse.write_scalar(ADDR_STAGE_COUNT, count)
     elif what == "active-stage":
         count = scalar(mouse.read(ADDR_STAGE_COUNT, 2), 0) or 1
         mouse.write_scalar(ADDR_ACTIVE_STAGE, parse_int(rest[0], 1, count, "stage") - 1)

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.dankestrick.omagravastar",
+  "name": "OmaGravastar",
+  "version": "0.1.0",
+  "author": "Dankestrick",
+  "license": "MIT",
+  "description": "Gravastar Mercury X Pro controls for the Omarchy bar: battery, DPI, polling rate, sensor and lighting, themed for Omarchy.",
+  "dependencies": [
+    {
+      "name": "python",
+      "package": "python",
+      "why": "Runs the helper that talks to the mouse dongle"
+    },
+    {
+      "name": "notify-send",
+      "package": "libnotify",
+      "why": "Low battery alerts"
+    }
+  ],
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "qml/Service.qml",
+    "barWidget": "qml/BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Gravastar Mouse",
+    "description": "Battery, DPI, polling rate, sensor and lighting for the Gravastar Mercury X Pro.",
+    "category": "System",
+    "aliases": [
+      "gravastar",
+      "mouse",
+      "mercury",
+      "dpi"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
