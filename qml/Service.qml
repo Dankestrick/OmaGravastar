@@ -147,6 +147,8 @@ Item {
     path: root.macroFile
     printErrors: false
     atomicWrites: true
+    watchChanges: true
+    onFileChanged: reload()
     onLoaded: {
       var data = Api.parseJson(text())
       root.macros = data instanceof Array ? data : []
