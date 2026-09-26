@@ -159,7 +159,30 @@ Item {
     recording = !recording
     waitingFor = ""
     lastEventAt = 0
-    message = recording ? "Recording. Type keys" + (recordMouse ? " or click the Key List" : "") + ", then Stop recording." : ""
+    message = recording ? "Recording. Type keys" + (recordMouse ? " or click the Key List" : "") + ", then Stop recording (or Esc)." : ""
+    if (recording) keyCatcher.forceActiveFocus()
+  }
+
+  // While recording or waiting for a key, all keys come here first, so a
+  // focused button or field can't swallow the key presses.
+  Item {
+    id: keyCatcher
+    width: 0
+    height: 0
+    Keys.onPressed: function(event) {
+      if (event.key === Qt.Key_Escape && !event.isAutoRepeat) {
+        view.recording = false
+        view.waitingFor = ""
+        view.message = ""
+      } else {
+        view.handleKey(event, true)
+      }
+      event.accepted = true
+    }
+    Keys.onReleased: function(event) {
+      if (event.key !== Qt.Key_Escape) view.handleKey(event, false)
+      event.accepted = true
+    }
   }
 
   function insertCommand(command) {
@@ -173,6 +196,7 @@ Item {
     }
     waitingFor = command
     message = "Press the key for " + command + "."
+    keyCatcher.forceActiveFocus()
   }
 
   // Called by the window for every key while this view is showing.
