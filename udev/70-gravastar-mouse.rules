@@ -1,0 +1,11 @@
+# OmaGravastar: let the logged-in user talk to the Gravastar Mercury X Pro's
+# 2.4G dongle (USB 3554:f54b) without root.
+#
+# - Matches only that dongle's hidraw nodes. No other device is affected.
+# - TAG+="uaccess" grants access to the user at the active local seat only,
+#   the same way Linux handles game controllers. It does not open the device
+#   to other users (no MODE="0666").
+#
+# Install:  sudo install -m 0644 70-gravastar-mouse.rules /etc/udev/rules.d/
+# Remove:   sudo rm /etc/udev/rules.d/70-gravastar-mouse.rules
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3554", ATTRS{idProduct}=="f54b", TAG+="uaccess"

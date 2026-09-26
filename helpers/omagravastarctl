@@ -841,7 +841,9 @@ def run_light(mouse, args):
 
 def with_lock():
     """Keep the bar's polling and a settings change from talking over each other."""
-    folder = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "omagravastar")
+    # $XDG_RUNTIME_DIR is owner-only; fall back to the user's own cache, never
+    # a shared /tmp folder.
+    folder = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or os.path.dirname(cache_path()), "omagravastar")
     os.makedirs(folder, exist_ok=True)
     handle = open(os.path.join(folder, "device.lock"), "w")
     fcntl.flock(handle, fcntl.LOCK_EX)

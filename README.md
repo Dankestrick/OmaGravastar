@@ -96,16 +96,7 @@ You need [Omarchy](https://omarchy.org) 4, a Gravastar Mercury X Pro with its
 2.4G dongle plugged in, Python 3 (Omarchy already has it), and `zenity` for the
 Export and Import file pickers.
 
-**1. Let your session talk to the dongle.** Linux only lets root use the
-mouse's settings channel until you add this udev rule. It gives your logged-in
-session access to the Gravastar dongle (`3554:f54b`) and no other device.
-
-```bash
-echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3554", ATTRS{idProduct}=="f54b", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/70-gravastar-mouse.rules
-sudo udevadm control --reload-rules && sudo udevadm trigger
-```
-
-**2. Add the plugin.**
+**1. Add the plugin.**
 
 ```bash
 omarchy plugin add https://github.com/Dankestrick/OmaGravastar.git --enable
@@ -117,6 +108,20 @@ and places the icon on the **right** of the bar. To move it:
 ```bash
 omarchy bar move io.github.dankestrick.omagravastar --section right
 ```
+
+**2. Let your session talk to the dongle (one time, needs root).** Linux lets
+only root use the mouse's settings channel until a udev rule allows it. The
+rule ships with the plugin in
+[`udev/70-gravastar-mouse.rules`](udev/70-gravastar-mouse.rules), so you can
+read it first. Copy it into place and reload udev:
+
+```bash
+sudo install -m 0644 ~/.config/omarchy/plugins/io.github.dankestrick.omagravastar/udev/70-gravastar-mouse.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+This is the only step that needs root. See
+[Permissions and safety](#permissions-and-safety) for exactly what it allows.
 
 **3. Make the big window float.** Add this to `~/.config/hypr/hyprland.lua` so
 the Buttons and Macros window opens as a centered floating window instead of a
@@ -132,6 +137,29 @@ o.window({ title = "^OmaGravastar$" }, {
 
 Do not symlink a git checkout into the plugins folder. Omarchy rejects a
 plugin tree that is a symlink.
+
+## Permissions and safety
+
+OmaGravastar runs as a normal Omarchy plugin, with your user's permissions.
+
+- **One root step, at install.** Step 2 copies one udev rule into
+  `/etc/udev/rules.d/`. After that, OmaGravastar never runs `sudo`, `pkexec` or
+  any other privileged command, and it installs no services or sudoers rules.
+- **What the rule allows.** It matches only the Gravastar dongle's hidraw nodes
+  (USB `3554:f54b`) and tags them `uaccess`, which gives the user at the
+  active local session read and write access, the same way Linux handles game
+  controllers. No other device is affected, and the dongle is not opened to
+  other users.
+- **What it talks to.** Only the dongle's settings channel, found by vendor,
+  product and usage page. It makes no network connections.
+- **What it writes.** Your settings go to the mouse. On disk it writes only
+  `~/.cache/omagravastar/` (last known settings and import backups),
+  `~/.config/omagravastar/macros.json` (your macro list), a lock file in
+  `$XDG_RUNTIME_DIR/omagravastar/`, and profile files where you choose to save
+  them.
+- **What it runs.** Its own helper (`helpers/omagravastarctl`, plain Python),
+  `notify-send` for battery alerts, and `zenity` for the Export and Import
+  file pickers.
 
 ## Use
 
@@ -160,7 +188,7 @@ Use Gravastar's web driver for those.
 | Problem | Fix |
 | --- | --- |
 | "Dongle not found" | Plug the dongle in. Check that `lsusb` lists `3554:f54b`. |
-| "No permission to open /dev/hidraw…" | Install the udev rule above, then unplug and replug the dongle. |
+| "No permission to open /dev/hidraw…" | Do install step 2, then unplug and replug the dongle. |
 | Settings are greyed out | The mouse is asleep. Move it. |
 | The big window opens tiled or on the scratchpad | Add the window rule from step 3. Windows open inside the scratchpad while it is showing. |
 
@@ -182,9 +210,14 @@ which you can delete. It leaves the udev rule, the window rule, your macro list
 and the settings cache. To remove those too:
 
 ```bash
+rm -rf ~/.cache/omagravastar ~/.config/omagravastar
+```
+
+Removing the udev rule needs root, like installing it:
+
+```bash
 sudo rm -f /etc/udev/rules.d/70-gravastar-mouse.rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
-rm -rf ~/.cache/omagravastar ~/.config/omagravastar
 ```
 
 Then delete the `OmaGravastar` window rule from `~/.config/hypr/hyprland.lua`.
@@ -195,7 +228,7 @@ mouse, not in the plugin.
 
 ## Develop from a clone
 
-`scripts/install.sh` copies `manifest.json`, `qml/`, `helpers/` and `assets/`
+`scripts/install.sh` copies `manifest.json`, `qml/`, `helpers/`, `assets/` and `udev/`
 into the live plugin folder. Use it while hacking, not as the public install.
 
 ```bash
