@@ -97,6 +97,7 @@ var BUTTON_GROUPS = [
   { value: "Button", actions: ["Left Click", "Right Click", "Wheel Click", "Backward", "Forward"] },
   { value: "Polling rate switch", actions: ["Polling rate switch"] },
   { value: "Disable", actions: ["Disable"] },
+  { value: "Profile switch", actions: ["Profile switch"] },
   { value: "Scroll Left/Right", actions: ["Scroll Left", "Scroll Right"] },
   { value: "Scroll Up/Down", actions: ["Scroll Up", "Scroll Down"] },
   { value: "DPI Switch", actions: ["DPI loop", "DPI +", "DPI -"] },
@@ -136,3 +137,5 @@ var BUTTON_SPOTS = [
   { photo: "top", x: 0.757, y: 0.505 },
   { photo: "bottom", x: 0.500, y: 0.500 }
 ]
+
+var PROFILES = ["Profile 1", "Profile 2", "Profile 3", "Profile 4"]

@@ -119,7 +119,7 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       blocked: effectMenu.popupOpen || sleepMenu.popupOpen || timerMenu.popupOpen
-        || countMenu.popupOpen || root.openMenus > 0 || root.confirmLongDistance
+        || countMenu.popupOpen || profileMenu.popupOpen || root.openMenus > 0 || root.confirmLongDistance
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onMoveRequested: function(dx, dy) {
@@ -257,8 +257,31 @@ Panel {
           InfoRow { label: "Polling Rate"; value: root.s.pollingHz ? root.s.pollingHz + "Hz" : "—" }
           InfoRow { label: "LOD"; value: root.s.lod || "—" }
           InfoRow { label: "Key Response Time"; value: root.s.keyResponseMs !== undefined ? root.s.keyResponseMs + "ms" : "—" }
-          InfoRow { label: "Configuration"; value: root.status.profile ? "Profile " + root.status.profile : "—" }
           InfoRow { label: "Battery"; value: root.mouse ? root.mouse.batteryText : "—" }
+
+          LabeledRow {
+            label: "Profile"
+            Dropdown {
+              id: profileMenu
+              width: Style.space(140)
+              showLabel: false
+              enabled: root.canEdit
+              options: Api.PROFILES
+              value: root.status.profile ? "Profile " + root.status.profile : ""
+              fontFamily: root.fontFamily
+              onChanged: function(v) { root.send(["set", "profile", v.replace("Profile ", "")]) }
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: "Each profile keeps its own DPI, polling rate, lighting, sensor settings, sleep time and buttons."
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
         }
 
         // ---------- Buttons ----------

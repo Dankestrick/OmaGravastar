@@ -18,6 +18,7 @@ Usage:
   omagravastarctl set sleep <10sec|30sec|1min|2min|3min|5min|10min|15min>
   omagravastarctl set performance-timer <10sec|30sec|1min|2min|3min|5min|10min|15min>
   omagravastarctl set long-distance <on|off>
+  omagravastarctl set profile <1-4>          (each profile holds a full set of settings)
   omagravastarctl set sensor-mode <lp|hp>   (Corded is automatic above 1000 Hz)
   omagravastarctl button <1-6> <action>     (see `omagravastarctl actions`)
   omagravastarctl actions
@@ -52,6 +53,8 @@ CMD_BATTERY = 0x04
 CMD_WRITE = 0x07
 CMD_READ = 0x08
 CMD_PROFILE = 0x0E
+CMD_SET_PROFILE = 0x0F
+PROFILE_COUNT = 4
 CMD_FIRMWARE = 0x12
 CMD_SET_LONG_DISTANCE = 0x16
 CMD_GET_LONG_DISTANCE = 0x17
@@ -127,6 +130,9 @@ _add("Scroll Left/Right", 3, [("Scroll Left", 0x0100), ("Scroll Right", 0x0200)]
 _add("Scroll Up/Down", 11, [("Scroll Up", 0x0100), ("Scroll Down", 0x0200)])
 _add("Polling rate switch", 7, [("Polling rate switch", 0x0000)])
 _add("Disable", 0, [("Disable", 0x0000)])
+# Not offered by Gravastar's web driver for this mouse, but it works: tested
+# 2026-09-26, button 6 moved Profile 1 to Profile 2.
+_add("Profile switch", 9, [("Profile switch", 0x0000)])
 _add("Toggle Decorative Lights", 8, [("Toggle All Decorative Lights", 0x0000),
                                      ("Toggle DPI Indicator Light", 0x0100),
                                      ("Toggle Light Strip", 0x0300),
@@ -141,7 +147,7 @@ _add("Multimedia", GROUP_MULTIMEDIA, [
 MEDIA_NAMES = {code: label for label, (_, group, code) in ACTIONS.items() if group == GROUP_MULTIMEDIA}
 PLAIN_NAMES = {(group, code): label for label, (_, group, code) in ACTIONS.items() if group != GROUP_MULTIMEDIA}
 # Groups the plugin shows but cannot edit yet.
-OTHER_GROUPS = {4: "Firepower Button", 5: "Combo key", 6: "Macro", 9: "Profile switch", 10: "DPI Lock"}
+OTHER_GROUPS = {4: "Firepower Button", 5: "Combo key", 6: "Macro", 10: "DPI Lock"}
 
 SWITCHES = {
     "motion-sync": ADDR_MOTION_SYNC,
@@ -526,6 +532,16 @@ def run_set(mouse, args):
             raise HelperError(1, f"{what} must be " + ", ".join(SLEEP_CHOICES))
         address = ADDR_SLEEP if what == "sleep" else ADDR_PERFORMANCE_TIMER
         mouse.write_scalar(address, SLEEP_CHOICES[rest[0]])
+    elif what == "profile":
+        profile = parse_int(rest[0], 1, PROFILE_COUNT, "profile")
+        # Length 1: the mouse rejects a padded packet here.
+        reply = mouse.transact(CMD_SET_PROFILE, data=bytes([profile - 1]))
+        if reply is None or reply[1] != 0:
+            raise HelperError(4, "The mouse did not switch profiles")
+        time.sleep(0.3)
+        now = mouse.transact(CMD_PROFILE)
+        if now is None or now[5] != profile - 1:
+            raise HelperError(4, "The mouse did not keep the new profile")
     elif what == "sensor-mode":
         if rest[0] not in SENSOR_MODES:
             raise HelperError(1, "sensor-mode must be lp or hp (Corded is automatic above 1000 Hz)")

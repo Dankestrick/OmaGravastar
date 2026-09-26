@@ -170,6 +170,22 @@ Item {
             }
           }
 
+          Dropdown {
+            id: profileMenu
+            anchors.right: miniSwitch.left
+            anchors.rightMargin: Style.space(16)
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(140)
+            showLabel: false
+            enabled: root.canEdit
+            options: Api.PROFILES
+            value: root.service && root.service.status.profile ? "Profile " + root.service.status.profile : ""
+            fontFamily: root.fontFamily
+            onChanged: function(v) {
+              if (root.service) root.service.change(["set", "profile", v.replace("Profile ", "")])
+            }
+          }
+
           ToggleSwitch {
             id: miniSwitch
             anchors.right: closeButton.left
