@@ -129,10 +129,10 @@ function groupActions(group) {
 // Buttons 1-5 sit on the top photo; button 6 is on the underside inset.
 // Tuned to Dank's photos in assets/.
 var BUTTON_SPOTS = [
-  { photo: "top", x: 0.40, y: 0.45 },
-  { photo: "top", x: 0.25, y: 0.35 },
-  { photo: "top", x: 0.33, y: 0.28 },
-  { photo: "top", x: 0.60, y: 0.55 },
-  { photo: "top", x: 0.72, y: 0.48 },
-  { photo: "bottom", x: 0.50, y: 0.50 }
+  { photo: "top", x: 0.380, y: 0.610 },
+  { photo: "top", x: 0.170, y: 0.350 },
+  { photo: "top", x: 0.240, y: 0.480 },
+  { photo: "top", x: 0.612, y: 0.653 },
+  { photo: "top", x: 0.757, y: 0.505 },
+  { photo: "bottom", x: 0.500, y: 0.500 }
 ]

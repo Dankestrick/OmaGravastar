@@ -91,9 +91,9 @@ Item {
     visible: root.opened
     title: "OmaGravastar"
     color: Color.background
-    implicitWidth: 1180
-    implicitHeight: 700
-    minimumSize: Qt.size(1000, 620)
+    implicitWidth: 1440
+    implicitHeight: 840
+    minimumSize: Qt.size(1200, 720)
 
     onVisibleChanged: {
       if (!visible && root.opened && !root.closingFromHost) root.requestClose()
@@ -196,7 +196,7 @@ Item {
           anchors.top: headerRule.bottom
           anchors.topMargin: Style.space(40)
           anchors.left: parent.left
-          width: Style.space(300)
+          width: Style.space(280)
           spacing: Style.space(8)
 
           PanelSectionHeader { text: "BUTTONS"; foreground: root.fg; fontFamily: root.fontFamily }
@@ -264,7 +264,7 @@ Item {
           anchors.topMargin: Style.space(40)
           anchors.right: parent.right
           anchors.bottom: parent.bottom
-          width: Style.space(420)
+          width: Style.space(410)
 
           Column {
             id: actionHeader
@@ -303,7 +303,7 @@ Item {
 
             // Groups, like the first column of the web driver's menu.
             ListView {
-              width: Style.space(190)
+              width: Style.space(205)
               height: parent.height
               clip: true
               spacing: Style.space(4)
@@ -325,7 +325,7 @@ Item {
 
             // Actions in the group.
             ListView {
-              width: parent.width - Style.space(200)
+              width: parent.width - Style.space(215)
               height: parent.height
               clip: true
               spacing: Style.space(4)
@@ -416,28 +416,31 @@ Item {
 
             // Button 6 lives under the wheel: show it in a round inset of the
             // underside photo, like the web driver.
-            Rectangle {
+            Item {
               id: inset
               readonly property var spot: Api.BUTTON_SPOTS[5]
-              width: Math.min(parent.width, parent.height) * 0.34
+              width: Math.min(parent.width, parent.height) * 0.36
               height: width
-              radius: width / 2
-              x: parent.width - width * 0.9
-              y: parent.height - height * 0.9
-              color: Color.background
-              border.width: 2
-              border.color: root.selected === 6 ? root.accent : Util.alpha(root.fg, 0.35)
-              clip: true
+              x: parent.width - width * 0.85
+              y: parent.height - height * 0.75
               visible: bottomImage.status === Image.Ready
 
+              // The photo is already cut to a circle with a clear outside.
               Image {
                 id: bottomImage
                 anchors.fill: parent
-                anchors.margins: parent.border.width
                 source: root.bottomPhoto
-                fillMode: Image.PreserveAspectCrop
+                fillMode: Image.PreserveAspectFit
                 smooth: true
                 mipmap: true
+              }
+
+              Rectangle {
+                anchors.fill: parent
+                radius: width / 2
+                color: "transparent"
+                border.width: 2
+                border.color: root.selected === 6 ? root.accent : Util.alpha(root.fg, 0.35)
               }
 
               NumberBadge {

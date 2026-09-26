@@ -70,7 +70,7 @@ one:
 ```lua
 o.window({ title = "^OmaGravastar$" }, {
   float = true,
-  size = { 1200, 760 },
+  size = { 1440, 840 },
   center = true,
 })
 ```
@@ -157,6 +157,9 @@ The mouse speaks the same CompX protocol as VGN, VXE and ATK mice.
 commands and settings layout, which made this plugin possible. Lighting, sleep
 time, long distance mode and Select mode were mapped on a real Mercury X Pro by
 comparing its settings before and after each change in Gravastar's web driver.
+
+The mouse photos in `assets/` are photos of Dankestrick's own Mercury X Pro
+and are covered by this repo's MIT license.
 
 The bar icon and dropdown layout follow
 [omarchy-wlmouse](https://github.com/LarsLarkin/omarchy-wlmouse).
