@@ -17,6 +17,7 @@ Usage:
   omagravastarctl set sleep <10sec|30sec|1min|2min|3min|5min|10min|15min>
   omagravastarctl set performance-timer <10sec|30sec|1min|2min|3min|5min|10min|15min>
   omagravastarctl set long-distance <on|off>
+  omagravastarctl set sensor-mode <lp|hp>   (Corded is automatic above 1000 Hz)
   omagravastarctl light effect <off|rainbow|single-color-breath|fixed-color|neon|rainbow-breath|fixed-rainbow>
   omagravastarctl light color <#rrggbb>
   omagravastarctl light brightness <1-10>
@@ -69,6 +70,7 @@ ADDR_RIPPLE = 0xB1
 ADDR_OFF_WHEN_MOVING = 0xB3
 ADDR_PERFORMANCE = 0xB5
 ADDR_PERFORMANCE_TIMER = 0xB7
+ADDR_SENSOR_MODE = 0xB9
 
 POLLING_RAW = {125: 8, 250: 4, 500: 2, 1000: 1, 2000: 16, 4000: 32, 8000: 64}
 POLLING_HZ = {raw: hz for hz, raw in POLLING_RAW.items()}
@@ -80,6 +82,10 @@ LOD_NAMES = {raw: name for name, raw in LOD_CHOICES.items()}
 SLEEP_CHOICES = {"10sec": 1, "30sec": 3, "1min": 6, "2min": 12, "3min": 18,
                  "5min": 30, "10min": 60, "15min": 90}
 SLEEP_NAMES = {raw: name for name, raw in SLEEP_CHOICES.items()}
+# Select mode. The mouse switches itself to Corded (ultra-performance) when
+# wired or above 1000 Hz, so only LP and HP can be chosen.
+SENSOR_MODES = {"lp": 0, "hp": 1}
+SENSOR_MODE_NAMES = {0: "LP", 1: "HP"}
 
 EFFECTS = {
     "rainbow": 1,
@@ -296,6 +302,7 @@ def read_settings(mouse):
         "ripple": on_off(scalar(block, ADDR_RIPPLE)),
         "performance": on_off(scalar(block, ADDR_PERFORMANCE)),
         "performanceTimer": SLEEP_NAMES.get(scalar(block, ADDR_PERFORMANCE_TIMER)),
+        "sensorMode": SENSOR_MODE_NAMES.get(scalar(block, ADDR_SENSOR_MODE)),
         "sleep": SLEEP_NAMES.get(sleep),
         "sleepRaw": sleep,
         "lighting": {
@@ -413,6 +420,10 @@ def run_set(mouse, args):
             raise HelperError(1, f"{what} must be " + ", ".join(SLEEP_CHOICES))
         address = ADDR_SLEEP if what == "sleep" else ADDR_PERFORMANCE_TIMER
         mouse.write_scalar(address, SLEEP_CHOICES[rest[0]])
+    elif what == "sensor-mode":
+        if rest[0] not in SENSOR_MODES:
+            raise HelperError(1, "sensor-mode must be lp or hp (Corded is automatic above 1000 Hz)")
+        mouse.write_scalar(ADDR_SENSOR_MODE, SENSOR_MODES[rest[0]])
     elif what == "long-distance":
         set_long_distance(mouse, parse_switch(rest[0]))
     else:
