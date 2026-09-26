@@ -25,6 +25,11 @@ Item {
   readonly property color dim: Qt.darker(Color.foreground, 1.4)
   readonly property color accent: Color.accent
   readonly property string fontFamily: Style.font.family
+  // Markers take the mouse's own Fixed Color (Lighting tab), so they match
+  // the mouse. Falls back to the theme accent until the color is known.
+  readonly property color markerColor: s.lighting && s.lighting.color ? s.lighting.color : Color.accent
+  readonly property color markerText: (0.299 * markerColor.r + 0.587 * markerColor.g + 0.114 * markerColor.b) > 0.6
+    ? "#000000" : "#ffffff"
 
   readonly property var s: service && service.mouseSettings ? service.mouseSettings : ({})
   readonly property var buttonList: s.buttons || []
@@ -463,7 +468,7 @@ Item {
                 radius: width / 2
                 color: "transparent"
                 border.width: 2
-                border.color: root.selected === 6 ? root.accent : Util.alpha(root.fg, 0.35)
+                border.color: root.selected === 6 ? root.markerColor : Util.alpha(root.markerColor, 0.45)
               }
 
               NumberBadge {
@@ -491,9 +496,9 @@ Item {
     width: Style.space(large ? 30 : 24)
     height: width
     radius: width / 2
-    color: active ? root.accent : Util.alpha(Color.background, 0.85)
+    color: active ? root.markerColor : Util.alpha(Color.background, 0.85)
     border.width: 2
-    border.color: active ? root.accent : root.fg
+    border.color: root.markerColor
     scale: badgeMouse.containsMouse ? 1.12 : 1.0
     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
 
@@ -501,7 +506,7 @@ Item {
       textFormat: Text.PlainText
       anchors.centerIn: parent
       text: String(badge.number)
-      color: badge.active ? Color.background : root.fg
+      color: badge.active ? root.markerText : root.fg
       font.family: root.fontFamily
       font.pixelSize: badge.large ? Style.font.body : Style.font.caption
       font.bold: true
