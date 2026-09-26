@@ -216,6 +216,20 @@ Item {
     return true
   }
 
+  // Dank's mouse photo behind the view, like the Buttons view, dimmed so the
+  // lists on top stay readable.
+  Image {
+    anchors.centerIn: parent
+    width: parent.width * 0.72
+    height: parent.height * 0.95
+    z: -1
+    source: Qt.resolvedUrl("../assets/mouse-top.png")
+    fillMode: Image.PreserveAspectFit
+    smooth: true
+    mipmap: true
+    opacity: 0.35
+  }
+
   // ---------- Left: Macro List ----------
   Column {
     id: listColumn
