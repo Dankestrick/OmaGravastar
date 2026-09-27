@@ -49,6 +49,7 @@ import json
 import os
 import select
 import sys
+import tempfile
 import time
 
 VENDOR_ID = 0x3554
@@ -474,6 +475,23 @@ def cache_path():
     return os.path.join(base, "omagravastar", "last-status.json")
 
 
+def atomic_write(path, data):
+    """Write via an unpredictable, exclusive 0600 temp file in the same folder,
+    then rename it into place."""
+    fd, tmp = tempfile.mkstemp(prefix=".omagravastar-", dir=os.path.dirname(path))
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(data.encode() if isinstance(data, str) else data)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def private_dir(path):
     """Create (or tighten) one of our own folders to owner-only."""
     os.makedirs(path, mode=0o700, exist_ok=True)
@@ -514,20 +532,14 @@ def run_save_macros():
         raise HelperError(1, "The macro list must be a JSON array")
     path = macro_list_path()
     private_dir(os.path.dirname(path))
-    with open(path + ".tmp", "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    os.chmod(path + ".tmp", 0o600)
-    os.replace(path + ".tmp", path)
+    atomic_write(path, json.dumps(data, indent=2) + "\n")
 
 
 def save_cache(status):
     path = cache_path()
     try:
         private_dir(os.path.dirname(path))
-        with open(path + ".tmp", "w") as f:
-            json.dump({k: status[k] for k in CACHED_KEYS if k in status}, f)
-        os.replace(path + ".tmp", path)
+        atomic_write(path, json.dumps({k: status[k] for k in CACHED_KEYS if k in status}))
     except OSError:
         pass
 
@@ -743,9 +755,7 @@ def tagged(image):
 def write_file(path, data):
     path = os.path.abspath(os.path.expanduser(path))
     os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
-    with open(path + ".tmp", "wb") as f:
-        f.write(data)
-    os.replace(path + ".tmp", path)
+    atomic_write(path, data)
     return path
 
 
