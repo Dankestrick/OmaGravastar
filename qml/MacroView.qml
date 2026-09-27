@@ -294,6 +294,7 @@ Item {
     }
 
     Text {
+      textFormat: Text.PlainText
       visible: view.macros.length === 0
       width: parent.width
       wrapMode: Text.WordWrap
@@ -363,6 +364,7 @@ Item {
             spacing: Style.space(14)
 
             Text {
+              textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               width: Style.space(16)
               text: eventRow.modelData.down ? "↓" : "↑"
@@ -412,6 +414,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         anchors.centerIn: parent
         visible: !!view.draft && view.events.length === 0 && !view.recording
         width: parent.width * 0.8
@@ -428,6 +431,7 @@ Item {
       spacing: Style.space(8)
       Button { text: "Delete"; bordered: true; enabled: view.eventIndex >= 0 && !view.recording; foreground: view.fg; fontFamily: view.fontFamily; onClicked: view.deleteEvent() }
       Text {
+        textFormat: Text.PlainText
         anchors.verticalCenter: parent.verticalCenter
         text: view.events.length + " / 70 events · delay is the wait after each event (ms)"
         color: view.dim
@@ -486,6 +490,7 @@ Item {
       Row {
         spacing: Style.space(10)
         Text {
+          textFormat: Text.PlainText
           anchors.verticalCenter: parent.verticalCenter
           text: "Default delay (ms)"
           color: view.fg
@@ -529,6 +534,7 @@ Item {
         spacing: Style.space(10)
         visible: !!view.draft && view.draft.method >= 1 && view.draft.method <= 252
         Text {
+          textFormat: Text.PlainText
           anchors.verticalCenter: parent.verticalCenter
           text: "Cycle Times"
           color: view.fg
@@ -601,6 +607,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         visible: view.message !== ""
         width: parent.width
         wrapMode: Text.WordWrap

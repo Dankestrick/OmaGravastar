@@ -300,6 +300,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           anchors.top: headerRule.bottom
           anchors.topMargin: Style.space(10)
           anchors.right: parent.right
@@ -312,6 +313,7 @@ Item {
 
         Text {
           id: sleepNote
+          textFormat: Text.PlainText
           anchors.top: headerRule.bottom
           anchors.topMargin: Style.space(10)
           visible: !!root.service && root.service.connected && !root.service.awake
@@ -487,6 +489,7 @@ Item {
                 }
               }
               Text {
+                textFormat: Text.PlainText
                 width: parent.width
                 wrapMode: Text.WordWrap
                 text: "Clicks the left button this many times, this many ms apart. When the number of times is set to 0, the key will keep sending signals when pressed and stop when released."
@@ -578,6 +581,7 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             anchors.centerIn: parent
             visible: topImage.status !== Image.Ready
             width: parent.width * 0.8
