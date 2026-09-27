@@ -39,6 +39,11 @@ Item {
   }
 
   readonly property string helper: Api.helperPath(Qt.resolvedUrl("../helpers/omagravastarctl"))
+
+  // Every helper run gets a time limit so a stuck device can't stall the shell.
+  function helperCommand(seconds, args) {
+    return ["timeout", "-k", "5", String(seconds), helper].concat(args)
+  }
   readonly property bool connected: !!(status && status.connected)
   readonly property bool awake: !!(status && status.awake)
   readonly property bool busy: actionProc.running || pending.length > 0
@@ -115,9 +120,12 @@ Item {
     return -1
   }
 
+  // The helper writes the list as a private (0600) file; macros can hold
+  // recorded keystrokes.
   function saveMacros(list) {
     macros = list
-    macroStore.setText(JSON.stringify(list, null, 2) + "\n")
+    macroSaver.input = JSON.stringify(list)
+    if (!macroSaver.running) macroSaver.running = true
   }
 
   // Macros already on the mouse's buttons join the list so they can be edited.
@@ -137,9 +145,10 @@ Item {
   }
 
   // Put a macro on a button (1-6).
+  // The macro goes to the helper on stdin, never on its command line.
   function assignMacro(button, macro) {
-    change(["macro", String(button), JSON.stringify({ name: macro.name, method: macro.method || 1, events: macro.events })],
-      "button " + button)
+    change(["macro", String(button), "-"], "button " + button,
+      JSON.stringify({ name: macro.name, method: macro.method || 1, events: macro.events }))
   }
 
   FileView {
@@ -170,12 +179,12 @@ Item {
   }
 
   // args: e.g. ["light", "brightness", "5"]. `key` groups repeat changes.
-  function change(args, key) {
+  function change(args, key, input) {
     var next = []
     var id = key || args.slice(0, 2).join(" ")
     for (var i = 0; i < pending.length; i++)
       if (pending[i].key !== id) next.push(pending[i])
-    next.push({ key: id, args: args })
+    next.push({ key: id, args: args, input: input || "" })
     pending = next
     runNext()
   }
@@ -184,7 +193,9 @@ Item {
     if (actionProc.running || statusProc.running || pending.length === 0) return
     var job = pending[0]
     pending = pending.slice(1)
-    actionProc.command = [root.helper].concat(job.args)
+    actionProc.command = root.helperCommand(90, job.args)
+    actionProc.input = job.input
+    actionProc.stdinEnabled = job.input !== ""
     actionProc.running = true
   }
 
@@ -206,18 +217,18 @@ Item {
     if (charging || battery > lowBattery + 5) { alertedLevel = 101; return }
     if (battery <= criticalBattery && alertedLevel > criticalBattery) {
       alertedLevel = criticalBattery
-      Quickshell.execDetached(["notify-send", "-u", "critical", "-a", "OmaGravastar",
+      Quickshell.execDetached(["timeout", "10", "notify-send", "-u", "critical", "-a", "OmaGravastar",
         "Mouse battery critical", battery + "% left. Plug in your Mercury X Pro."])
     } else if (battery <= lowBattery && alertedLevel > lowBattery) {
       alertedLevel = lowBattery
-      Quickshell.execDetached(["notify-send", "-a", "OmaGravastar",
+      Quickshell.execDetached(["timeout", "10", "notify-send", "-a", "OmaGravastar",
         "Mouse battery low", battery + "% left."])
     }
   }
 
   Process {
     id: statusProc
-    command: [root.helper, "status"]
+    command: root.helperCommand(45, ["status"])
     stdout: StdioCollector { id: statusOut; waitForEnd: true }
     stderr: StdioCollector { id: statusErr; waitForEnd: true }
     onExited: function(code) {
@@ -234,6 +245,14 @@ Item {
 
   Process {
     id: actionProc
+    // Text for the helper's stdin (a macro), written once it has started.
+    property string input: ""
+    onStarted: {
+      if (input === "") return
+      write(input)
+      input = ""
+      stdinEnabled = false
+    }
     stdout: StdioCollector { id: actionOut; waitForEnd: true }
     stderr: StdioCollector { id: actionErr; waitForEnd: true }
     onExited: function(code) {
@@ -264,8 +283,24 @@ Item {
 
   onPanelOpenChanged: if (panelOpen) refresh()
   onWindowOpenChanged: if (windowOpen) refresh()
-  Component.onCompleted: {
-    Quickshell.execDetached(["mkdir", "-p", macroFile.replace(/\/[^/]*$/, "")])
-    refresh()
+  // Saves the macro list through the helper (stdin in, private file out).
+  Process {
+    id: macroSaver
+    property string input: ""
+    property string written: ""
+    command: root.helperCommand(20, ["save-macros"])
+    stdinEnabled: true
+    onStarted: {
+      written = input
+      write(input)
+      stdinEnabled = false
+    }
+    onExited: {
+      stdinEnabled = true
+      // Saved again while this write was running: write the newest list too.
+      if (input !== written) running = true
+    }
   }
+
+  Component.onCompleted: refresh()
 }

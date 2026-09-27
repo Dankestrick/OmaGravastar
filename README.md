@@ -157,8 +157,9 @@ plugin tree that is a symlink.
 OmaGravastar runs as a normal Omarchy plugin, with your user's permissions.
 
 - **One root step, at install.** Step 2 copies one udev rule into
-  `/etc/udev/rules.d/`. After that, OmaGravastar never runs `sudo`, `pkexec` or
-  any other privileged command, and it installs no services or sudoers rules.
+  `/etc/udev/rules.d/`. After that, nothing needs root. At runtime,
+  OmaGravastar does not use sudo or pkexec. It installs no services and changes
+  no sudoers rules.
 - **What the rule allows.** It matches only the Gravastar dongle's hidraw nodes
   (USB `3554:f54b`) and tags them `uaccess`, which gives the user at the
   active local session read and write access, the same way Linux handles game
@@ -170,7 +171,11 @@ OmaGravastar runs as a normal Omarchy plugin, with your user's permissions.
   `~/.cache/omagravastar/` (last known settings and import backups),
   `~/.config/omagravastar/macros.json` (your macro list), a lock file in
   `$XDG_RUNTIME_DIR/omagravastar/`, and profile files where you choose to save
-  them.
+  them. Everything it writes is private to you: files are 0600 and its folders
+  0700, because macros can contain recorded keystrokes.
+- **Macros stay private.** Macros go to the helper on stdin, never as
+  command-line arguments, so other users can't see them in the process list.
+- **Nothing can hang the shell.** Every helper run has a time limit.
 - **What it runs.** Its own helper (`helpers/omagravastarctl`, plain Python),
   `notify-send` for battery alerts, and `zenity` for the Export and Import
   file pickers.
@@ -240,7 +245,7 @@ Profiles you exported stay in `~/Documents/OmaGravastar`.
 Your mouse keeps whatever settings you last chose. They are stored on the
 mouse, not in the plugin.
 
-## Develop from a clone
+## Development
 
 `scripts/install.sh` copies `manifest.json`, `qml/`, `helpers/`, `assets/` and `udev/`
 into the live plugin folder. Use it while hacking, not as the public install.

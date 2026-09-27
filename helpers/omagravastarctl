@@ -24,7 +24,8 @@ Usage:
   omagravastarctl actions
   omagravastarctl firepower <1-6> <times 0-3> <interval 10-255>
                                              (repeat left clicks; times 0 = while held)
-  omagravastarctl macro <1-6> <macro.json | '{json}'>  (write a macro to a button; see MACROS)
+  omagravastarctl macro <1-6> <macro.json | ->   (write a macro to a button; - reads it from stdin)
+  omagravastarctl save-macros                  (store the macro list read from stdin, private 0600)
   omagravastarctl export <file.bin>         (current profile, Gravastar web driver format)
   omagravastarctl import <file.bin>         (into the current profile; backs it up first)
   omagravastarctl light effect <off|rainbow|single-color-breath|fixed-color|neon|rainbow-breath|fixed-rainbow>
@@ -473,10 +474,57 @@ def cache_path():
     return os.path.join(base, "omagravastar", "last-status.json")
 
 
+def private_dir(path):
+    """Create (or tighten) one of our own folders to owner-only."""
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
+    return path
+
+
+def tighten_existing():
+    """Files from older versions may be 0644: make our own folders private."""
+    for folder in (os.path.dirname(cache_path()), backup_dir(), os.path.dirname(macro_list_path())):
+        if not os.path.isdir(folder):
+            continue
+        try:
+            os.chmod(folder, 0o700)
+            for name in os.listdir(folder):
+                path = os.path.join(folder, name)
+                if os.path.isfile(path) and not os.path.islink(path):
+                    os.chmod(path, 0o600)
+        except OSError:
+            pass
+
+
+def macro_list_path():
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, "omagravastar", "macros.json")
+
+
+def run_save_macros():
+    """Store the plugin's macro list (JSON on stdin) as a private file."""
+    try:
+        data = json.loads(sys.stdin.read(4 * 1024 * 1024))
+    except ValueError as error:
+        raise HelperError(1, f"The macro list is not valid JSON: {error}")
+    if not isinstance(data, list):
+        raise HelperError(1, "The macro list must be a JSON array")
+    path = macro_list_path()
+    private_dir(os.path.dirname(path))
+    with open(path + ".tmp", "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.chmod(path + ".tmp", 0o600)
+    os.replace(path + ".tmp", path)
+
+
 def save_cache(status):
     path = cache_path()
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        private_dir(os.path.dirname(path))
         with open(path + ".tmp", "w") as f:
             json.dump({k: status[k] for k in CACHED_KEYS if k in status}, f)
         os.replace(path + ".tmp", path)
@@ -694,7 +742,7 @@ def tagged(image):
 
 def write_file(path, data):
     path = os.path.abspath(os.path.expanduser(path))
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     with open(path + ".tmp", "wb") as f:
         f.write(data)
     os.replace(path + ".tmp", path)
@@ -745,6 +793,8 @@ def run_import(mouse, args):
     profile = mouse.transact(CMD_PROFILE)
     number = profile[5] + 1 if profile is not None and profile[1] == 0 else 0
     stamp = time.strftime("%Y%m%d-%H%M%S")
+    private_dir(os.path.dirname(backup_dir()))
+    private_dir(backup_dir())
     backup = write_file(os.path.join(backup_dir(), f"profile-{number}-before-import-{stamp}.bin"), tagged(current))
     written = 0
     for start, end in REGIONS:
@@ -781,8 +831,10 @@ def run_macro(mouse, args):
         raise HelperError(1, "usage: macro <1-6> <macro.json>")
     number = parse_int(args[0], 1, 6, "button")
     try:
-        if args[1].lstrip().startswith("{"):
-            macro = json.loads(args[1])        # the plugin passes the macro inline
+        if args[1] == "-":
+            # The plugin sends macros on stdin: recorded keys may include typed
+            # text, and command-line arguments are visible to other users.
+            macro = json.loads(sys.stdin.read(64 * 1024))
         else:
             with open(os.path.expanduser(args[1])) as f:
                 macro = json.load(f)
@@ -844,15 +896,31 @@ def with_lock():
     # $XDG_RUNTIME_DIR is owner-only; fall back to the user's own cache, never
     # a shared /tmp folder.
     folder = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or os.path.dirname(cache_path()), "omagravastar")
-    os.makedirs(folder, exist_ok=True)
+    private_dir(folder)
     handle = open(os.path.join(folder, "device.lock"), "w")
-    fcntl.flock(handle, fcntl.LOCK_EX)
-    return handle
+    deadline = time.monotonic() + 30
+    while True:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return handle
+        except BlockingIOError:
+            if time.monotonic() > deadline:
+                handle.close()
+                raise HelperError(5, "Another OmaGravastar command is still running. Try again.")
+            time.sleep(0.1)
 
 
 def main(argv):
     if not argv or argv[0] in ("-h", "--help", "help"):
         print(__doc__.strip())
+        return 0
+    # Everything the helper writes (cache, backups, exports, macro list, lock)
+    # is private to the user.
+    os.umask(0o077)
+    tighten_existing()
+    if argv[0] == "save-macros":
+        run_save_macros()
+        print(json.dumps({"ok": True}))
         return 0
     if argv[0] == "actions":
         groups = {}
