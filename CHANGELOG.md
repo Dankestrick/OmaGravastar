@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- `scripts/install.sh` no longer copies over whatever is at the plugin path.
+  It only replaces a folder it created itself that still holds exactly the
+  files it installed (listed with SHA-256 in `.omagravastar-dev-install`), and
+  leaves an `omarchy plugin add` checkout or any folder with other or changed
+  files untouched.
+- Macros: if `~/.config/omagravastar/macros.json` exists but can't be read, the
+  macro list is not saved over it, and the dropdown says so. Before, a damaged
+  file was replaced the next time the mouse reported a macro on a button.
+
 ## 0.2.0
 
 - Buttons window: a larger floating window with a photo of the mouse and numbered, clickable buttons, opened from the Buttons tab. A switch (or `M`) goes back to the dropdown on the same monitor.

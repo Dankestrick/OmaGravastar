@@ -531,6 +531,18 @@ def run_save_macros():
     if not isinstance(data, list):
         raise HelperError(1, "The macro list must be a JSON array")
     path = macro_list_path()
+    # Never replace a list that exists but can't be read: it may hold macros
+    # the plugin failed to load.
+    try:
+        with open(path) as f:
+            text = f.read()
+        old = json.loads(text) if text.strip() else []
+    except FileNotFoundError:
+        old = []
+    except (OSError, ValueError):
+        old = None
+    if not isinstance(old, list):
+        raise HelperError(1, f"{path} could not be read, so it was not replaced. Fix or move that file.")
     private_dir(os.path.dirname(path))
     atomic_write(path, json.dumps(data, indent=2) + "\n")
 

@@ -112,6 +112,9 @@ Item {
   // only stores macros that are on a button. This list is ours, saved to
   // ~/.config/omagravastar/macros.json.
   property var macros: []
+  // The list is saved only after macros.json was read cleanly or found
+  // missing, so a file that fails to load is never overwritten.
+  property string macrosState: "loading" // "loading", "ok" or "unreadable"
   readonly property string macroFile: (Quickshell.env("XDG_CONFIG_HOME") || ((Quickshell.env("HOME") || "") + "/.config"))
     + "/omagravastar/macros.json"
 
@@ -123,6 +126,11 @@ Item {
   // The helper writes the list as a private (0600) file; macros can hold
   // recorded keystrokes.
   function saveMacros(list) {
+    if (macrosState !== "ok") {
+      if (macrosState === "unreadable")
+        notice = "Macros are not being saved: " + macroFile + " could not be read. Fix or move that file."
+      return
+    }
     macros = list
     macroSaver.input = JSON.stringify(list)
     if (!macroSaver.running) macroSaver.running = true
@@ -159,10 +167,15 @@ Item {
     watchChanges: true
     onFileChanged: reload()
     onLoaded: {
-      var data = Api.parseJson(text())
+      var raw = String(text() || "").trim()
+      var data = raw ? Api.parseJson(raw) : []
       root.macros = data instanceof Array ? data : []
+      root.macrosState = data instanceof Array ? "ok" : "unreadable"
     }
-    onLoadFailed: root.macros = []
+    onLoadFailed: function(error) {
+      root.macros = []
+      root.macrosState = error === FileViewError.FileNotFound ? "ok" : "unreadable"
+    }
   }
 
   // Changes wait here while another command runs. Keyed by setting so a slider

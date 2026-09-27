@@ -249,6 +249,11 @@ mouse, not in the plugin.
 
 `scripts/install.sh` copies `manifest.json`, `qml/`, `helpers/`, `assets/` and `udev/`
 into the live plugin folder. Use it while hacking, not as the public install.
+It only replaces a folder it created itself that still holds exactly what it
+put there: the `.omagravastar-dev-install` marker lists each installed file
+with its SHA-256. If the folder has any other file, a changed file, or came
+from `omarchy plugin add`, it stops without changing anything; run
+`omarchy plugin remove io.github.dankestrick.omagravastar` first.
 
 ```bash
 git clone https://github.com/Dankestrick/OmaGravastar.git
