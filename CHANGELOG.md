@@ -11,7 +11,8 @@
   macro list is not saved over it, and the dropdown says so. Before, a damaged
   file was replaced the next time the mouse reported a macro on a button.
   The Macros window now says "Not saved." and keeps your draft instead of
-  showing "Saved." when that happens.
+  showing "Saved." when that happens. The warning clears by itself once the
+  file can be read again.
 - Developer install steps moved from the README to `CONTRIBUTING.md`.
 
 ## 0.2.0

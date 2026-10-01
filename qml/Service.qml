@@ -115,6 +115,9 @@ Item {
   // The list is saved only after macros.json was read cleanly or found
   // missing, so a file that fails to load is never overwritten.
   property string macrosState: "loading" // "loading", "ok" or "unreadable"
+  readonly property string macroWarning: "Macros are not being saved: " + macroFile + " could not be read. Fix or move that file."
+  // Clear the warning once macros.json reads cleanly again.
+  onMacrosStateChanged: if (macrosState === "ok" && notice === macroWarning) notice = ""
   readonly property string macroFile: (Quickshell.env("XDG_CONFIG_HOME") || ((Quickshell.env("HOME") || "") + "/.config"))
     + "/omagravastar/macros.json"
 
@@ -129,7 +132,7 @@ Item {
   function saveMacros(list) {
     if (macrosState !== "ok") {
       if (macrosState === "unreadable")
-        notice = "Macros are not being saved: " + macroFile + " could not be read. Fix or move that file."
+        notice = macroWarning
       return false
     }
     macros = list
