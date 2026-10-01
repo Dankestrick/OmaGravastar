@@ -125,15 +125,17 @@ Item {
 
   // The helper writes the list as a private (0600) file; macros can hold
   // recorded keystrokes.
+  // Returns false when the list was not saved, so callers keep their draft.
   function saveMacros(list) {
     if (macrosState !== "ok") {
       if (macrosState === "unreadable")
         notice = "Macros are not being saved: " + macroFile + " could not be read. Fix or move that file."
-      return
+      return false
     }
     macros = list
     macroSaver.input = JSON.stringify(list)
     if (!macroSaver.running) macroSaver.running = true
+    return true
   }
 
   // Macros already on the mouse's buttons join the list so they can be edited.

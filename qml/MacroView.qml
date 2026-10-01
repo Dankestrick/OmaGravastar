@@ -68,8 +68,8 @@ Item {
     if (!service) return
     var list = macros.slice()
     list.push({ name: uniqueName("Macro"), method: 1, events: [] })
+    if (!service.saveMacros(list)) { message = "Not saved."; return }
     dirty = false
-    service.saveMacros(list)
     macroIndex = list.length - 1
     loadDraft()
     renameText = draft.name
@@ -80,8 +80,8 @@ Item {
     if (!service || !macros[macroIndex]) return
     var list = macros.slice()
     list.splice(macroIndex, 1)
+    if (!service.saveMacros(list)) { message = "Not deleted."; return }
     dirty = false
-    service.saveMacros(list)
     macroIndex = Math.max(0, Math.min(macroIndex, list.length - 1))
     loadDraft()
   }
@@ -93,8 +93,9 @@ Item {
     var clash = service.macroIndex(draft.name)
     if (clash >= 0 && clash !== macroIndex) { message = "There is already a macro with the same name."; return }
     list[macroIndex] = copyDraft()
+    // Keep the draft and skip the buttons when the list could not be saved.
+    if (!service.saveMacros(list)) { message = "Not saved."; return }
     dirty = false
-    service.saveMacros(list)
     message = "Saved."
     // Buttons already running this macro get the new version.
     var buttons = service.mouseSettings && service.mouseSettings.buttons ? service.mouseSettings.buttons : []
