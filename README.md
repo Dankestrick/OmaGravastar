@@ -179,6 +179,10 @@ OmaGravastar runs as a normal Omarchy plugin, with your user's permissions.
 - **What it runs.** Its own helper (`helpers/omagravastarctl`, plain Python),
   `notify-send` for battery alerts, and `zenity` for the Export and Import
   file pickers.
+- **Developer scripts.** `scripts/install.sh`, `scripts/uninstall.sh` and
+  `scripts/validate.sh` are tools for working on the plugin. The marketplace
+  install never runs them. `install.sh` only replaces a copy it made itself and
+  stops if that folder holds anything else; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Use
 
