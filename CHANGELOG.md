@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2
+
+- New look: a faint OMAGRAVASTAR, in the font of the Omarchy logo, repeats
+  in diagonal rows behind the dropdown and the Buttons and Macros window. It
+  uses the theme's accent color, so it changes with the theme.
+
 ## 0.2.1
 
 - `scripts/install.sh` no longer copies over whatever is at the plugin path.

@@ -6,6 +6,8 @@ OmaGravastar is a Quickshell plugin: a mouse icon on the bar that shows your
 battery when you hover it, a dropdown with every setting from Gravastar's web
 driver, and a larger window for buttons and macros. It talks to the mouse
 through its 2.4G dongle, works offline, and follows your Omarchy theme.
+Behind the dropdown and the window, a faint OMAGRAVASTAR in the font of the
+Omarchy logo repeats in diagonal rows, in the theme's accent color.
 
 ![OmaGravastar Buttons window with the mouse photo and numbered buttons](docs/screenshots/ButtonsWindow.png)
 

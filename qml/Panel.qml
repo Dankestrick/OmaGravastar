@@ -143,6 +143,9 @@ Item {
       if (!visible && root.opened && !root.closingFromHost) root.requestClose()
     }
 
+    // Faint OMAGRAVASTAR behind the whole window.
+    NameBackdrop {}
+
     FocusScope {
       anchors.fill: parent
       focus: true

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.dankestrick.omagravastar",
   "name": "OmaGravastar",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "author": "Dankestrick",
   "license": "MIT",
   "description": "Gravastar Mercury X Pro controls for the Omarchy bar: battery, DPI, lighting, buttons, macros and profiles, themed for Omarchy.",
